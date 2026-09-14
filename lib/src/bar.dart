@@ -83,6 +83,12 @@ class LiquidTabBar extends StatefulWidget {
   static const double _gapFlat = 12;
   static const double _lensOverhang = 8;
   static const double _lensInset = 4;
+
+  /// Below this the lens is invisible to the eye yet its glass surface still
+  /// paints — a backdrop shader inside the shrinking fold clip, which cuts a
+  /// visible seam at the boundary. Skip the surface entirely under this.
+  static const double _minVisibleFade = 0.02;
+
   static const double _pillWidth = 76;
   static const double _glassPad = 24; // room for the shadow and rim sampling
   static const double _iconSize = 23;
@@ -144,13 +150,24 @@ class _LiquidTabBarState extends State<LiquidTabBar>
   );
 
   /// The lens's position in visual slots (0 = the leftmost slot).
+  ///
+  /// Seeded with the LTR slot (pure index counting) as a safe placeholder:
+  /// `_visualSlot` reads [Directionality] through the ambient context, which
+  /// is illegal during `initState`. The RTL-aware slot is resolved once in
+  /// [didChangeDependencies], before the first build.
   late final AnimationController _lens = AnimationController.unbounded(
     vsync: this,
-    value: (_visualSlot(widget.selectedIndex) ?? 0).toDouble(),
+    value: (widget.selectedIndex ?? 0).toDouble(),
   );
 
   bool _pressed = false;
   bool _scrubbing = false;
+
+  /// Whether the lens has been parked on the RTL-aware slot of the starting
+  /// tab in [didChangeDependencies]. Done exactly once: later dependency
+  /// changes (theme, text scale, ...) must not displace the lens from
+  /// wherever the user has since moved it.
+  bool _didInitLens = false;
 
   /// Where the finger landed; null once it has lifted.
   Offset? _down;
@@ -174,7 +191,40 @@ class _LiquidTabBarState extends State<LiquidTabBar>
   @override
   void initState() {
     super.initState();
+    _fold.addListener(_onFoldTick);
     _listen();
+  }
+
+  /// Resolve the lens onto its true RTL-aware slot the first time
+  /// dependencies arrive. `_visualSlot` needs [Directionality] from the
+  /// context, which is only legal once `initState` has completed; the lens
+  /// field was seeded with the LTR placeholder for this reason. Runs before
+  /// the first build, so the lens parks correctly with no visible jump, then
+  /// never re-snaps (see `_didInitLens`).
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didInitLens) return;
+    _didInitLens = true;
+    final v = _visualSlot(widget.selectedIndex);
+    if (v != null) _lens.value = v.toDouble();
+  }
+
+  /// Belt-and-suspenders: every tick of the fold animation, if the bar is
+  /// nearly unfolded, snap the lens to the selected tab. This catches any
+  /// scenario that _onNav misses (e.g. the _spring was a no-op because
+  /// _lens.value was "already correct" but the rendering disagrees).
+  void _onFoldTick() {
+    if (_fold.value < 0.05 && !_scrubbing) {
+      final v = _visualSlot(widget.selectedIndex);
+      if (v != null) {
+        final vd = v.toDouble();
+        if ((_lens.value - vd).abs() > 0.001) {
+          _lens.stop();
+          _lens.value = vd;
+        }
+      }
+    }
   }
 
   void _listen() {
@@ -199,13 +249,35 @@ class _LiquidTabBarState extends State<LiquidTabBar>
   @override
   void dispose() {
     _listening?.removeListener(_onNav);
+    _fold.removeListener(_onFoldTick);
     _fold.dispose();
     _lens.dispose();
     _relax.dispose();
     super.dispose();
   }
 
-  void _onNav() => _spring(_fold, _nav.minimized ? 1 : 0);
+  // FIX: On unfold, re-spring the lens to the current selectedIndex.
+  // Without this the lens stays wherever it drifted during the fold,
+  // because didUpdateWidget won't fire (selectedIndex hasn't changed).
+  void _onNav() {
+    final target = _nav.minimized ? 1.0 : 0.0;
+    _spring(_fold, target);
+    if (!_nav.minimized) {
+      final v = _visualSlot(widget.selectedIndex);
+      if (v != null) {
+        final vd = v.toDouble();
+        // Force-stop and re-target the lens — a spring to the same
+        // value is a no-op, so assign directly when close enough.
+        if ((_lens.value - vd).abs() > 0.01) {
+          _spring(_lens, vd);
+        } else {
+          // Even when "close", snap exactly to eliminate sub-pixel drift.
+          _lens.stop();
+          _lens.value = vd;
+        }
+      }
+    }
+  }
 
   bool get _reduced => MediaQuery.disableAnimationsOf(context);
 
@@ -510,7 +582,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     // The lens rides above the glyphs so it bends the ones it slides across.
     // Its speed stretches it along the way; a press swells it under the
     // finger; the fold dissolves it into the pill.
-    if (activeV != null && fade > 0) {
+    if (activeV != null && fade >= LiquidTabBar._minVisibleFade) {
       final v = _lens.value;
       final speed = _lensVelocity.abs();
       final stretch = (speed * 0.055).clamp(0.0, 0.45);
@@ -530,13 +602,32 @@ class _LiquidTabBarState extends State<LiquidTabBar>
           motion,
         ),
       );
-      final lw = (g.slotW + LiquidTabBar._lensOverhang) * (1 + stretch) * press;
-      final lh = (LiquidTabBar.barHeight - 2 * LiquidTabBar._lensInset) *
-          (1 - stretch * 0.3) *
-          press;
+      final lensPad = m == LiquidTabBarMaterial.glass ? 6.0 : 0.0;
       final cx = g.slotCenterX(v) - rect.left + shift;
       final cy = LiquidTabBar.barHeight / 2 - rect.top;
-      final lensPad = m == LiquidTabBarMaterial.glass ? 6.0 : 0.0;
+      // The lens must never outgrow the bar's rendered rect at this fold
+      // value, or the ClipRRect cuts its glass edge. As the bar folds toward
+      // the pill it shrinks; lerp the lens width down toward a pill-safe
+      // width, then hard-clamp width and height to whatever the current bar
+      // rect — and the lens's own position in it — can actually hold.
+      final fullLw =
+          (g.slotW + LiquidTabBar._lensOverhang) * (1 + stretch) * press;
+      final pillSafeLw = LiquidTabBar._pillWidth - 2 * lensPad;
+      final maxLwByBar = rect.width - 2 * lensPad;
+      final maxLwByCenter = 2 *
+          math.max(
+              0.0,
+              math.min(cx - lensPad, rect.width - cx - lensPad));
+      final lw = ui.lerpDouble(fullLw, pillSafeLw, tt)!
+          .clamp(0.0, math.max(0.0, math.min(maxLwByBar, maxLwByCenter)))
+          .toDouble();
+      // Vertical needs no morph: the capsule's resting height already equals
+      // the pill height, so just cap it at the current bar height.
+      final lh = ((LiquidTabBar.barHeight - 2 * LiquidTabBar._lensInset) *
+              (1 - stretch * 0.3) *
+              press)
+          .clamp(0.0, math.max(0.0, rect.height))
+          .toDouble();
       children.add(
         Positioned(
           left: cx - lw / 2 - lensPad,
