@@ -655,19 +655,23 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     // The grab grows the lens taller than the bar about its own centre, so
     // it escapes the capsule's top and bottom edge evenly.
     final cy = LiquidTabBar.barHeight / 2 - rect.top;
-    // Horizontally the lens stays inside the bar even grabbed. As the bar
-    // folds toward the pill it shrinks; lerp the lens width down toward a
-    // pill-safe width, then hard-clamp to whatever the current bar rect —
-    // and the lens's own position in it — can actually hold.
+    // At rest the lens stays inside the bar: as the bar folds toward the
+    // pill it shrinks, so lerp the lens width down toward a pill-safe width
+    // and hard-clamp to whatever the current bar rect — and the lens's own
+    // position in it — can actually hold. A GRABBED lens is free of the
+    // capsule: it overflows the bar's ends the way it overflows the top and
+    // bottom, so pushing it to the outermost slot never squashes it — the
+    // clamp fades out with the press spring and returns on release.
     final fullLw =
         (g.slotW + LiquidTabBar._lensOverhang) * (1 + stretch) * press;
     final pillSafeLw = LiquidTabBar._pillWidth - 2 * lensPad;
     final maxLwByBar = rect.width - 2 * lensPad;
     final maxLwByCenter = 2 *
         math.max(0.0, math.min(cx - lensPad, rect.width - cx - lensPad));
-    final lw = ui.lerpDouble(fullLw, pillSafeLw, tt)!
+    final clampedLw = ui.lerpDouble(fullLw, pillSafeLw, tt)!
         .clamp(0.0, math.max(0.0, math.min(maxLwByBar, maxLwByCenter)))
         .toDouble();
+    final lw = ui.lerpDouble(clampedLw, fullLw, pt)!;
     // Vertical: the capsule's resting height already equals the pill height,
     // so cap it at the current bar height — plus the grab's growth, which is
     // allowed past the bar (the lens is outside the clip).
