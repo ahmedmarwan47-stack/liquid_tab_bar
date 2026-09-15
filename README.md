@@ -8,6 +8,12 @@ An iOS 26-style floating liquid-glass tab bar for Flutter.
   spring, stretches with its speed, and while it moves it disperses light —
   the glyphs and labels its rim crosses split into a warm copy and a cool one,
   and a thin-film band lies along its edge.
+- **The grab.** A press balloons the lens past the capsule — taller than the
+  bar, escaping its top and bottom edge evenly — and the glass magnifies the
+  tab it holds, the colour channels zooming slightly apart so the enlarged
+  glyph fringes at its own edges. It rides one spring, up on touch-down and
+  home on release. `LiquidTabBarTheme(pressLens: false)` restores the older,
+  quieter swell instead.
 - **Scrub.** Press and drag along the bar and the lens is glued to your finger,
   ticking at every tab; release to choose, the lens landing with the speed you
   gave it.
@@ -60,8 +66,9 @@ Scaffold(
 
 `LiquidTabItem` takes an `iconBuilder` for custom glyphs (SVGs, say); the bar
 hands it the colour and whether the tab is selected. `LiquidTabBarTheme`
-carries every colour and number; `LiquidTabBarController.material` pins a
-tier (`glass`, `blur`, `opaque`) or leaves it `auto`.
+carries every colour and number — including `pressLens`, the grab's off
+switch; `LiquidTabBarController.material` pins a tier (`glass`, `blur`,
+`opaque`) or leaves it `auto`.
 
 ## Where the numbers come from
 
