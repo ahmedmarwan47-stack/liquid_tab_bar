@@ -626,66 +626,98 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     final v = _lens.value;
     final speed = _lensVelocity.abs();
     final stretch = (speed * 0.055).clamp(0.0, 0.45);
-    // The grab, on its spring — 0 with [LiquidTabBarTheme.pressLens] off,
-    // where the press stays the old instant 6% swell.
-    final grab = th.pressLens;
-    final pt = grab ? _press.value.clamp(0.0, 1.0) : 0.0;
-    final press = grab
-        ? 1.0 + LiquidTabBar._pressWide * pt
-        : (_pressed ? 1.06 : 1.0);
     // The fringe comes and goes with the stretch, so the bubble's colour
-    // and its liquid shape read as one thing happening; a grab opens it (and
-    // the zoom) with the press spring instead of a hard switch.
+    // and its liquid shape read as one thing happening.
     final motion = (speed / LiquidTabBar._fringeFullSpeed).clamp(0.0, 1.0);
-    final restDisp = grab
-        ? ui.lerpDouble(
-            th.lensGlass.dispersion, LiquidTabBar._pressFringe, pt)!
-        : (_pressed ? LiquidTabBar._fringePressed : th.lensGlass.dispersion);
-    final restSpec = grab
-        ? ui.lerpDouble(
-            th.lensGlass.specular, LiquidTabBar._pressSpecular, pt)!
-        : th.lensGlass.specular;
-    final style = th.lensGlass.copyWith(
-      dispersion: ui.lerpDouble(restDisp, LiquidTabBar._fringeMoving, motion),
-      specular: ui.lerpDouble(restSpec, LiquidTabBar._fringeSpecular, motion),
-      zoom: 1.0 + LiquidTabBar._pressZoom * pt,
-    );
     final lensPad = m == LiquidTabBarMaterial.glass ? 6.0 : 0.0;
     final cx = g.slotCenterX(v) - rect.left + shift;
-    // The grab grows the lens taller than the bar about its own centre, so
-    // it escapes the capsule's top and bottom edge evenly.
     final cy = LiquidTabBar.barHeight / 2 - rect.top;
-    // At rest the lens stays inside the bar: as the bar folds toward the
-    // pill it shrinks, so lerp the lens width down toward a pill-safe width
-    // and hard-clamp to whatever the current bar rect — and the lens's own
-    // position in it — can actually hold. A GRABBED lens is free of the
-    // capsule: it overflows the bar's ends the way it overflows the top and
-    // bottom, so pushing it to the outermost slot never squashes it — the
-    // clamp fades out with the press spring and returns on release.
-    final fullLw =
+
+    // The lens stays inside the bar: as the bar folds toward the pill it
+    // shrinks, so a width is lerped down toward a pill-safe width and
+    // hard-clamped to whatever the current bar rect — and the lens's own
+    // position in it — can actually hold. Both press styles build on this;
+    // the grab then walks away from it while grabbed.
+    double clampWidth(double fullLw) {
+      final pillSafeLw = LiquidTabBar._pillWidth - 2 * lensPad;
+      final maxLwByBar = rect.width - 2 * lensPad;
+      final maxLwByCenter = 2 *
+          math.max(0.0, math.min(cx - lensPad, rect.width - cx - lensPad));
+      return ui.lerpDouble(fullLw, pillSafeLw, tt)!
+          .clamp(0.0, math.max(0.0, math.min(maxLwByBar, maxLwByCenter)))
+          .toDouble();
+    }
+
+    double fullWidth(double press) =>
         (g.slotW + LiquidTabBar._lensOverhang) * (1 + stretch) * press;
-    final pillSafeLw = LiquidTabBar._pillWidth - 2 * lensPad;
-    final maxLwByBar = rect.width - 2 * lensPad;
-    final maxLwByCenter = 2 *
-        math.max(0.0, math.min(cx - lensPad, rect.width - cx - lensPad));
-    final clampedLw = ui.lerpDouble(fullLw, pillSafeLw, tt)!
-        .clamp(0.0, math.max(0.0, math.min(maxLwByBar, maxLwByCenter)))
-        .toDouble();
-    final lw = ui.lerpDouble(clampedLw, fullLw, pt)!;
-    // Vertical: the capsule's resting height already equals the pill height,
-    // so cap it at the current bar height — plus the grab's growth, which is
-    // allowed past the bar (the lens is outside the clip).
-    final baseLh = grab
-        ? LiquidTabBar.barHeight -
-            2 * LiquidTabBar._lensInset +
-            LiquidTabBar._pressGrow * pt
-        : (LiquidTabBar.barHeight - 2 * LiquidTabBar._lensInset) * press;
-    final lh = (baseLh * (1 - stretch * 0.3))
-        .clamp(
-          0.0,
-          math.max(0.0, rect.height + LiquidTabBar._pressGrow * pt),
-        )
-        .toDouble();
+
+    // ---- The CLASSIC press (pressLens: false) --------------------------
+    // The bar as it shipped through 1.0.x: a press is an instant 6% swell
+    // and a hard dispersion switch, and the lens never leaves the capsule.
+    _LensSpec classic() {
+      final press = _pressed ? 1.06 : 1.0;
+      final lw = clampWidth(fullWidth(press));
+      final lh = ((LiquidTabBar.barHeight - 2 * LiquidTabBar._lensInset) *
+              (1 - stretch * 0.3) *
+              press)
+          .clamp(0.0, math.max(0.0, rect.height))
+          .toDouble();
+      final style = th.lensGlass.copyWith(
+        dispersion: ui.lerpDouble(
+          _pressed ? LiquidTabBar._fringePressed : th.lensGlass.dispersion,
+          LiquidTabBar._fringeMoving,
+          motion,
+        ),
+        specular: ui.lerpDouble(
+          th.lensGlass.specular,
+          LiquidTabBar._fringeSpecular,
+          motion,
+        ),
+      );
+      return _LensSpec(width: lw, height: lh, style: style);
+    }
+
+    // ---- The GRAB (pressLens: true, the default) -----------------------
+    // Everything rides the [_press] spring: the lens balloons [_pressGrow]
+    // past the bar about its own centre (top, bottom AND the bar's ends —
+    // the width clamp fades out with the spring), magnifies what it holds
+    // ([_pressZoom] on [GlassStyle.zoom]) and opens the fringe toward
+    // [_pressFringe] with the rim light at [_pressSpecular] under it.
+    _LensSpec grabbed() {
+      final pt = _press.value.clamp(0.0, 1.0);
+      final press = 1.0 + LiquidTabBar._pressWide * pt;
+      final full = fullWidth(press);
+      final lw = ui.lerpDouble(clampWidth(full), full, pt)!;
+      final lh = ((LiquidTabBar.barHeight -
+                  2 * LiquidTabBar._lensInset +
+                  LiquidTabBar._pressGrow * pt) *
+              (1 - stretch * 0.3))
+          .clamp(
+            0.0,
+            math.max(0.0, rect.height + LiquidTabBar._pressGrow * pt),
+          )
+          .toDouble();
+      final style = th.lensGlass.copyWith(
+        dispersion: ui.lerpDouble(
+          ui.lerpDouble(
+              th.lensGlass.dispersion, LiquidTabBar._pressFringe, pt)!,
+          LiquidTabBar._fringeMoving,
+          motion,
+        ),
+        specular: ui.lerpDouble(
+          ui.lerpDouble(
+              th.lensGlass.specular, LiquidTabBar._pressSpecular, pt)!,
+          LiquidTabBar._fringeSpecular,
+          motion,
+        ),
+        zoom: 1.0 + LiquidTabBar._pressZoom * pt,
+      );
+      return _LensSpec(width: lw, height: lh, style: style);
+    }
+
+    final spec = th.pressLens ? grabbed() : classic();
+    final lw = spec.width;
+    final lh = spec.height;
     return Positioned(
       left: rect.left + cx - lw / 2 - lensPad,
       top: rect.top + cy - lh / 2 - lensPad,
@@ -694,7 +726,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
       child: IgnorePointer(
         child: Opacity(
           opacity: fade,
-          child: _lensSurface(m, Size(lw, lh), lensPad, style),
+          child: _lensSurface(m, Size(lw, lh), lensPad, spec.style),
         ),
       ),
     );
@@ -874,6 +906,21 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     _spring(_press, 0);
     if (_pressed && mounted) setState(() => _pressed = false);
   }
+}
+
+/// What one press style makes of the lens: its size and its glass. The two
+/// styles — the classic press and the grab — each build one of these, so
+/// their code never interleaves and either can be read (or deleted) whole.
+class _LensSpec {
+  const _LensSpec({
+    required this.width,
+    required this.height,
+    required this.style,
+  });
+
+  final double width;
+  final double height;
+  final GlassStyle style;
 }
 
 /// The bar's frame for one screen width: the open capsule, the folded pill,
