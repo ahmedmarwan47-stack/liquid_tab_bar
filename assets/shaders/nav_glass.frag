@@ -31,6 +31,7 @@ uniform float uEdgeDark;   // 20    rim shade on the side facing away
 uniform float uShadow;     // 21    drop shadow alpha; 0 = none
 uniform float uShadowBlur; // 22    shadow softness (px)
 uniform vec2 uShadowOff;   // 23-24 shadow offset (px)
+uniform float uZoom;       // 25    interior magnification; 1 = optically flat
 
 uniform sampler2D uTex;
 
@@ -137,17 +138,33 @@ void main() {
   vec3 t = refract(vec3(0.0, 0.0, -1.0), n, 1.0 / 1.5);
   vec2 off = t.xy / max(-t.z, 0.3) * uDepth;
 
-  vec3 col = frost(p + off);
+  // The grabbed lens: uZoom > 1 magnifies the interior — every sample is
+  // pulled toward the capsule's centre, so what the glass holds reads larger
+  // the way a lifted magnifier shows it. At 1 (the bar, the resting lens)
+  // this whole branch reduces to sampling at p, exactly as before.
+  float z = max(uZoom, 1.0);
+  bool zoomed = z > 1.001;
+  vec2 zc = uRect.xy + hs;
+  vec2 pg = zoomed ? zc + q / z : p;
+
+  vec3 col = frost(pg + off);
   float rimW = 1.0 - h;
   // Dispersion: glass bends blue more than red, so the rim shows the page's
   // red from a little nearer the edge and its blue from a little further in.
   // uDisp is that spread as a fraction of the bend — a whisper at rest, and
   // on the lens opened wide while a finger drags it, so the glyphs and labels
   // it slides across split into a warm copy and a cool one at its edge: the
-  // fringe a soap bubble shows in the sun.
-  if (uDisp > 0.0 && rimW > 0.01) {
-    col.r = mix(col.r, tap(p + off * (1.0 - uDisp)).r, rimW);
-    col.b = mix(col.b, tap(p + off * (1.0 + uDisp)).b, rimW);
+  // fringe a soap bubble shows in the sun. Zoomed, the channels also magnify
+  // slightly apart, so the magnified content fringes at its own edges, not
+  // only where the rim bends.
+  if (uDisp > 0.0 && (rimW > 0.01 || zoomed)) {
+    float zr = zoomed ? mix(1.0, z, 1.0 - uDisp * 0.12) : 1.0;
+    float zb = zoomed ? mix(1.0, z, 1.0 + uDisp * 0.12) : 1.0;
+    vec2 pr = zoomed ? zc + q / zr : p;
+    vec2 pb = zoomed ? zc + q / zb : p;
+    float w = max(rimW, zoomed ? 0.85 : 0.0);
+    col.r = mix(col.r, tap(pr + off * (1.0 - uDisp)).r, w);
+    col.b = mix(col.b, tap(pb + off * (1.0 + uDisp)).b, w);
   }
 
   float l = dot(col, vec3(0.2126, 0.7152, 0.0722));

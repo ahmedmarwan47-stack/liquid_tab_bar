@@ -105,6 +105,19 @@ class LiquidTabBar extends StatefulWidget {
   static const double _fringeSpecular = 0.36;
   static const double _fringeFullSpeed = 3;
 
+  /// The grab ([LiquidTabBarTheme.pressLens]): a press balloons the lens past
+  /// the bar — [_pressGrow] taller, [_pressWide] wider, lifted [_pressLift]
+  /// so the growth reads upward — while the glass magnifies what it holds
+  /// ([_pressZoom] on [GlassStyle.zoom]) and the fringe opens toward
+  /// [_pressFringe] with the rim light at [_pressSpecular] under it. All of
+  /// it rides the [_press] spring, so it swells there and settles back.
+  static const double _pressGrow = 24;
+  static const double _pressWide = 0.10;
+  static const double _pressLift = 6;
+  static const double _pressZoom = 0.18;
+  static const double _pressFringe = 0.85;
+  static const double _pressSpecular = 0.30;
+
   /// How far a finger travels along the bar before a press is a scrub.
   static const double _scrubSlop = 6;
 
@@ -162,6 +175,14 @@ class _LiquidTabBarState extends State<LiquidTabBar>
 
   bool _pressed = false;
   bool _scrubbing = false;
+
+  /// 0 = resting, 1 = grabbed. Springs up on pointer-down and home on
+  /// release; drives the press swell, lift, zoom and fringe when
+  /// [LiquidTabBarTheme.pressLens] is on (otherwise it never leaves 0).
+  late final AnimationController _press = AnimationController.unbounded(
+    vsync: this,
+    value: 0,
+  );
 
   /// Whether the lens has been parked on the RTL-aware slot of the starting
   /// tab in [didChangeDependencies]. Done exactly once: later dependency
@@ -253,6 +274,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     _fold.dispose();
     _lens.dispose();
     _relax.dispose();
+    _press.dispose();
     super.dispose();
   }
 
@@ -334,7 +356,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: Listenable.merge([_nav, _fold, _lens, _relax]),
+      animation: Listenable.merge([_nav, _fold, _lens, _relax, _press]),
       builder: (context, _) => _bar(context),
     );
   }
@@ -353,6 +375,11 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     final radius = rect.height / 2;
     final pad =
         material == LiquidTabBarMaterial.glass ? LiquidTabBar._glassPad : 0.0;
+
+    // The lens, OUTSIDE the capsule's clip: grabbed, it balloons past the
+    // bar's edge, and a clip would cut its glass rim. At rest it sits within
+    // the bar anyway, so nothing needs clipping.
+    final lens = _lensLayer(g, rect, t, material);
 
     return SizedBox(
       height: LiquidTabBar.barHeight + gap,
@@ -379,6 +406,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
               ),
             ),
           ),
+          if (lens != null) lens,
           Positioned.fromRect(rect: rect, child: _touch(g, rect, t)),
         ],
       ),
@@ -579,70 +607,95 @@ class _LiquidTabBarState extends State<LiquidTabBar>
       );
     }
 
-    // The lens rides above the glyphs so it bends the ones it slides across.
-    // Its speed stretches it along the way; a press swells it under the
-    // finger; the fold dissolves it into the pill.
-    if (activeV != null && fade >= LiquidTabBar._minVisibleFade) {
-      final v = _lens.value;
-      final speed = _lensVelocity.abs();
-      final stretch = (speed * 0.055).clamp(0.0, 0.45);
-      final press = _pressed ? 1.06 : 1.0;
-      // The fringe comes and goes with the stretch, so the bubble's colour
-      // and its liquid shape read as one thing happening.
-      final motion = (speed / LiquidTabBar._fringeFullSpeed).clamp(0.0, 1.0);
-      final style = th.lensGlass.copyWith(
-        dispersion: ui.lerpDouble(
-          _pressed ? LiquidTabBar._fringePressed : th.lensGlass.dispersion,
-          LiquidTabBar._fringeMoving,
-          motion,
-        ),
-        specular: ui.lerpDouble(
-          th.lensGlass.specular,
-          LiquidTabBar._fringeSpecular,
-          motion,
-        ),
-      );
-      final lensPad = m == LiquidTabBarMaterial.glass ? 6.0 : 0.0;
-      final cx = g.slotCenterX(v) - rect.left + shift;
-      final cy = LiquidTabBar.barHeight / 2 - rect.top;
-      // The lens must never outgrow the bar's rendered rect at this fold
-      // value, or the ClipRRect cuts its glass edge. As the bar folds toward
-      // the pill it shrinks; lerp the lens width down toward a pill-safe
-      // width, then hard-clamp width and height to whatever the current bar
-      // rect — and the lens's own position in it — can actually hold.
-      final fullLw =
-          (g.slotW + LiquidTabBar._lensOverhang) * (1 + stretch) * press;
-      final pillSafeLw = LiquidTabBar._pillWidth - 2 * lensPad;
-      final maxLwByBar = rect.width - 2 * lensPad;
-      final maxLwByCenter = 2 *
-          math.max(
-              0.0,
-              math.min(cx - lensPad, rect.width - cx - lensPad));
-      final lw = ui.lerpDouble(fullLw, pillSafeLw, tt)!
-          .clamp(0.0, math.max(0.0, math.min(maxLwByBar, maxLwByCenter)))
-          .toDouble();
-      // Vertical needs no morph: the capsule's resting height already equals
-      // the pill height, so just cap it at the current bar height.
-      final lh = ((LiquidTabBar.barHeight - 2 * LiquidTabBar._lensInset) *
-              (1 - stretch * 0.3) *
-              press)
-          .clamp(0.0, math.max(0.0, rect.height))
-          .toDouble();
-      children.add(
-        Positioned(
-          left: cx - lw / 2 - lensPad,
-          top: cy - lh / 2 - lensPad,
-          width: lw + 2 * lensPad,
-          height: lh + 2 * lensPad,
-          child: Opacity(
-            opacity: fade,
-            child: _lensSurface(m, Size(lw, lh), lensPad, style),
-          ),
-        ),
-      );
-    }
-
     return Stack(clipBehavior: Clip.none, children: children);
+  }
+
+  /// The lens — laid over the clipped content in the bar's outer stack, so a
+  /// grab may carry it past the capsule. It rides above the glyphs and bends
+  /// the ones it slides across; its speed stretches it along the way; a press
+  /// grabs it ([LiquidTabBarTheme.pressLens]) or barely swells it (the old
+  /// manner); the fold dissolves it into the pill. Null when there is nothing
+  /// to show.
+  Widget? _lensLayer(_Geometry g, Rect rect, double t, LiquidTabBarMaterial m) {
+    final th = widget.theme;
+    final tt = t.clamp(0.0, 1.0);
+    final fade = (1 - tt) * (1 - tt);
+    final activeV = _visualSlot(widget.selectedIndex);
+    if (activeV == null || fade < LiquidTabBar._minVisibleFade) return null;
+    final shift = t * (g.pill.center.dx - g.slotCenterX(activeV.toDouble()));
+    final v = _lens.value;
+    final speed = _lensVelocity.abs();
+    final stretch = (speed * 0.055).clamp(0.0, 0.45);
+    // The grab, on its spring — 0 with [LiquidTabBarTheme.pressLens] off,
+    // where the press stays the old instant 6% swell.
+    final grab = th.pressLens;
+    final pt = grab ? _press.value.clamp(0.0, 1.0) : 0.0;
+    final press = grab
+        ? 1.0 + LiquidTabBar._pressWide * pt
+        : (_pressed ? 1.06 : 1.0);
+    // The fringe comes and goes with the stretch, so the bubble's colour
+    // and its liquid shape read as one thing happening; a grab opens it (and
+    // the zoom) with the press spring instead of a hard switch.
+    final motion = (speed / LiquidTabBar._fringeFullSpeed).clamp(0.0, 1.0);
+    final restDisp = grab
+        ? ui.lerpDouble(
+            th.lensGlass.dispersion, LiquidTabBar._pressFringe, pt)!
+        : (_pressed ? LiquidTabBar._fringePressed : th.lensGlass.dispersion);
+    final restSpec = grab
+        ? ui.lerpDouble(
+            th.lensGlass.specular, LiquidTabBar._pressSpecular, pt)!
+        : th.lensGlass.specular;
+    final style = th.lensGlass.copyWith(
+      dispersion: ui.lerpDouble(restDisp, LiquidTabBar._fringeMoving, motion),
+      specular: ui.lerpDouble(restSpec, LiquidTabBar._fringeSpecular, motion),
+      zoom: 1.0 + LiquidTabBar._pressZoom * pt,
+    );
+    final lensPad = m == LiquidTabBarMaterial.glass ? 6.0 : 0.0;
+    final cx = g.slotCenterX(v) - rect.left + shift;
+    // The grab grows the lens taller than the bar and lifts its centre, so
+    // the growth reads upward — toward the finger, out of the capsule.
+    final cy = LiquidTabBar.barHeight / 2 -
+        rect.top -
+        LiquidTabBar._pressLift * pt;
+    // Horizontally the lens stays inside the bar even grabbed. As the bar
+    // folds toward the pill it shrinks; lerp the lens width down toward a
+    // pill-safe width, then hard-clamp to whatever the current bar rect —
+    // and the lens's own position in it — can actually hold.
+    final fullLw =
+        (g.slotW + LiquidTabBar._lensOverhang) * (1 + stretch) * press;
+    final pillSafeLw = LiquidTabBar._pillWidth - 2 * lensPad;
+    final maxLwByBar = rect.width - 2 * lensPad;
+    final maxLwByCenter = 2 *
+        math.max(0.0, math.min(cx - lensPad, rect.width - cx - lensPad));
+    final lw = ui.lerpDouble(fullLw, pillSafeLw, tt)!
+        .clamp(0.0, math.max(0.0, math.min(maxLwByBar, maxLwByCenter)))
+        .toDouble();
+    // Vertical: the capsule's resting height already equals the pill height,
+    // so cap it at the current bar height — plus the grab's growth, which is
+    // allowed past the bar (the lens is outside the clip).
+    final baseLh = grab
+        ? LiquidTabBar.barHeight -
+            2 * LiquidTabBar._lensInset +
+            LiquidTabBar._pressGrow * pt
+        : (LiquidTabBar.barHeight - 2 * LiquidTabBar._lensInset) * press;
+    final lh = (baseLh * (1 - stretch * 0.3))
+        .clamp(
+          0.0,
+          math.max(0.0, rect.height + LiquidTabBar._pressGrow * pt),
+        )
+        .toDouble();
+    return Positioned(
+      left: rect.left + cx - lw / 2 - lensPad,
+      top: rect.top + cy - lh / 2 - lensPad,
+      width: lw + 2 * lensPad,
+      height: lh + 2 * lensPad,
+      child: IgnorePointer(
+        child: Opacity(
+          opacity: fade,
+          child: _lensSurface(m, Size(lw, lh), lensPad, style),
+        ),
+      ),
+    );
   }
 
   Widget _lensSurface(
@@ -704,6 +757,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
         _fingerAt = null;
         _hover = _visualAt(g, rect, e.localPosition.dx);
         setState(() => _pressed = true);
+        if (widget.theme.pressLens) _spring(_press, 1);
       },
       onPointerMove: (e) {
         if (folded || _down == null) return;
@@ -815,6 +869,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
 
   void _release() {
     _hover = null;
+    _spring(_press, 0);
     if (_pressed && mounted) setState(() => _pressed = false);
   }
 }

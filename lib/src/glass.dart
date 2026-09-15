@@ -54,6 +54,7 @@ class GlassStyle {
     this.shadow = 0,
     this.shadowBlur = 0,
     this.shadowOffset = Offset.zero,
+    this.zoom = 1.0,
   });
 
   /// The bar: measured against the iOS 26 tab bar over a white page — a
@@ -130,13 +131,24 @@ class GlassStyle {
   final double shadowBlur;
   final Offset shadowOffset;
 
-  /// The same glass with another [dispersion] and [specular] — what the lens
-  /// becomes under a dragging finger. Hands back this very instance when
-  /// nothing changes, so a repaint is only asked for when the glass differs.
-  GlassStyle copyWith({double? dispersion, double? specular}) {
+  /// Interior magnification: 1 is optically flat (only the rim bends), above
+  /// it every sample inside the capsule is pulled toward the centre, so what
+  /// the glass holds reads larger — a grabbed lens. Dispersing, the channels
+  /// zoom slightly apart, so the magnified content fringes at its own edges,
+  /// not just at the rim.
+  final double zoom;
+
+  /// The same glass with another [dispersion], [specular] and [zoom] — what
+  /// the lens becomes under a pressing or dragging finger. Hands back this
+  /// very instance when nothing changes, so a repaint is only asked for when
+  /// the glass differs.
+  GlassStyle copyWith({double? dispersion, double? specular, double? zoom}) {
     final d = dispersion ?? this.dispersion;
     final s = specular ?? this.specular;
-    if (d == this.dispersion && s == this.specular) return this;
+    final z = zoom ?? this.zoom;
+    if (d == this.dispersion && s == this.specular && z == this.zoom) {
+      return this;
+    }
     return GlassStyle(
       rim: rim,
       curve: curve,
@@ -151,6 +163,7 @@ class GlassStyle {
       shadow: shadow,
       shadowBlur: shadowBlur,
       shadowOffset: shadowOffset,
+      zoom: z,
     );
   }
 }
@@ -317,7 +330,8 @@ class _RenderGlassFilter extends RenderProxyBox {
       ..setFloat(21, s.shadow)
       ..setFloat(22, s.shadowBlur * d)
       ..setFloat(23, s.shadowOffset.dx * d)
-      ..setFloat(24, s.shadowOffset.dy * d);
+      ..setFloat(24, s.shadowOffset.dy * d)
+      ..setFloat(25, s.zoom);
     final layer = (this.layer as BackdropFilterLayer?) ?? BackdropFilterLayer();
     layer
       ..filter = ui.ImageFilter.shader(_shader)

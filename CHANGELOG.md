@@ -1,3 +1,20 @@
+## 1.1.0
+
+The grab: pressing the bar now balloons the lens past the capsule — 24pt
+taller, biased upward, a tenth wider — while the glass **magnifies** the tab
+it holds (a new `zoom` knob on `GlassStyle`, ×1.18 grabbed, with the channels
+zooming slightly apart so the magnified glyph fringes at its own edges) and
+the dispersion opens to 0.85 with the rim light brightened under it. All of
+it rides one press spring, up on touch-down and home on release, replacing
+the old instant 6% swell. The lens moved out of the bar's clip to make the
+overflow possible; at rest and while folding it still sizes itself inside
+the bar, so nothing else changed.
+
+Off switch: `LiquidTabBarTheme(pressLens: false)` restores the old press
+exactly. The blur tier keeps the swell and the fringe threads but cannot
+magnify (no shader); `zoom: 1` leaves the shader's output bit-identical to
+before.
+
 ## 1.0.1
 
 The selection lens survives a fold and unfold. Three defects in one cycle of

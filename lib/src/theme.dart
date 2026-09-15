@@ -64,6 +64,7 @@ class LiquidTabBarTheme {
     this.lensGlass = GlassStyle.lens,
     this.spring = const SpringDescription(mass: 1, stiffness: 320, damping: 30),
     this.relax = const Duration(milliseconds: 120),
+    this.pressLens = true,
   });
 
   /// The selected tab's glyph and label; every other tab's.
@@ -109,4 +110,10 @@ class LiquidTabBarTheme {
   /// a scrubbing finger stops.
   final SpringDescription spring;
   final Duration relax;
+
+  /// Grabbing the lens — a press on the bar — balloons it past the capsule,
+  /// magnifies the tab it holds (glass tier only; the blur tier cannot bend
+  /// the page) and opens the fringe, springing there and back. False restores
+  /// the quiet 6% swell that never leaves the bar.
+  final bool pressLens;
 }
