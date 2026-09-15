@@ -1,7 +1,7 @@
 ## 1.1.0
 
 The grab: pressing the bar now balloons the lens past the capsule — 24pt
-taller, biased upward, a tenth wider — while the glass **magnifies** the tab
+taller, escaping the bar's top and bottom edge evenly, a tenth wider — while the glass **magnifies** the tab
 it holds (a new `zoom` knob on `GlassStyle`, ×1.18 grabbed, with the channels
 zooming slightly apart so the magnified glyph fringes at its own edges) and
 the dispersion opens to 0.85 with the rim light brightened under it. All of

@@ -106,14 +106,14 @@ class LiquidTabBar extends StatefulWidget {
   static const double _fringeFullSpeed = 3;
 
   /// The grab ([LiquidTabBarTheme.pressLens]): a press balloons the lens past
-  /// the bar — [_pressGrow] taller, [_pressWide] wider, lifted [_pressLift]
-  /// so the growth reads upward — while the glass magnifies what it holds
-  /// ([_pressZoom] on [GlassStyle.zoom]) and the fringe opens toward
-  /// [_pressFringe] with the rim light at [_pressSpecular] under it. All of
-  /// it rides the [_press] spring, so it swells there and settles back.
+  /// the bar — [_pressGrow] taller, [_pressWide] wider, growing evenly past
+  /// the bar's top AND bottom edge (the reference recording grows both ways;
+  /// an upward bias was tried and read wrong) — while the glass magnifies
+  /// what it holds ([_pressZoom] on [GlassStyle.zoom]) and the fringe opens
+  /// toward [_pressFringe] with the rim light at [_pressSpecular] under it.
+  /// All of it rides the [_press] spring, so it swells there and settles back.
   static const double _pressGrow = 24;
   static const double _pressWide = 0.10;
-  static const double _pressLift = 6;
   static const double _pressZoom = 0.18;
   static const double _pressFringe = 0.85;
   static const double _pressSpecular = 0.30;
@@ -652,11 +652,9 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     );
     final lensPad = m == LiquidTabBarMaterial.glass ? 6.0 : 0.0;
     final cx = g.slotCenterX(v) - rect.left + shift;
-    // The grab grows the lens taller than the bar and lifts its centre, so
-    // the growth reads upward — toward the finger, out of the capsule.
-    final cy = LiquidTabBar.barHeight / 2 -
-        rect.top -
-        LiquidTabBar._pressLift * pt;
+    // The grab grows the lens taller than the bar about its own centre, so
+    // it escapes the capsule's top and bottom edge evenly.
+    final cy = LiquidTabBar.barHeight / 2 - rect.top;
     // Horizontally the lens stays inside the bar even grabbed. As the bar
     // folds toward the pill it shrinks; lerp the lens width down toward a
     // pill-safe width, then hard-clamp to whatever the current bar rect —
