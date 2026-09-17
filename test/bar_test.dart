@@ -1000,9 +1000,8 @@ void main() {
         expect(find.byType(TextField), findsOneWidget);
 
         final noKeyboardFieldRect = tester.getRect(find.byType(TextField));
-        final noKeyboardBarHeight = tester
-            .getSize(find.byType(LiquidTabBar))
-            .height;
+        final noKeyboardBarHeight =
+            tester.getSize(find.byType(LiquidTabBar)).height;
         // Without keyboard, search field is near the bottom of 800px screen
         expect(noKeyboardFieldRect.bottom, greaterThan(700.0));
         expect(
@@ -1015,9 +1014,8 @@ void main() {
         await tester.pumpAndSettle();
 
         final withKeyboardFieldRect = tester.getRect(find.byType(TextField));
-        final withKeyboardBarHeight = tester
-            .getSize(find.byType(LiquidTabBar))
-            .height;
+        final withKeyboardBarHeight =
+            tester.getSize(find.byType(LiquidTabBar)).height;
         expect(withKeyboardBarHeight, closeTo(noKeyboardBarHeight, 0.001));
         // With keyboard of 320px, the search field must sit above 800 - 320 = 480px!
         expect(withKeyboardFieldRect.bottom, lessThanOrEqualTo(480.0));
@@ -1171,9 +1169,8 @@ void main() {
         expect(textFieldFinder, findsOneWidget);
 
         // Verify focus is acquired
-        final FocusNode focusNode = tester
-            .widget<TextField>(textFieldFinder)
-            .focusNode!;
+        final FocusNode focusNode =
+            tester.widget<TextField>(textFieldFinder).focusNode!;
         expect(focusNode.hasFocus, isTrue);
 
         // Tap on body area outside search field
@@ -1211,9 +1208,8 @@ void main() {
       await tester.pumpAndSettle();
 
       final textFieldFinder = find.byType(TextField);
-      final FocusNode focusNode = tester
-          .widget<TextField>(textFieldFinder)
-          .focusNode!;
+      final FocusNode focusNode =
+          tester.widget<TextField>(textFieldFinder).focusNode!;
       expect(focusNode.hasFocus, isTrue);
 
       // Enter text
@@ -1266,9 +1262,8 @@ void main() {
 
         // In reduced motion, focus is immediately requested
         final textFieldFinder = find.byType(TextField);
-        final FocusNode focusNode = tester
-            .widget<TextField>(textFieldFinder)
-            .focusNode!;
+        final FocusNode focusNode =
+            tester.widget<TextField>(textFieldFinder).focusNode!;
         expect(focusNode.hasFocus, isTrue);
       },
     );
@@ -2880,7 +2875,9 @@ void main() {
       },
     );
 
-    test('folded glass tier increases shader tint alpha, scales blur, and elevates shadow', () {
+    test(
+        'folded glass tier increases shader tint alpha, scales blur, and elevates shadow',
+        () {
       const theme = LiquidTabBarTheme.dark();
 
       // At rest / expanded (foldProgress = 0.0), unchanged
@@ -3092,8 +3089,8 @@ void main() {
               child: LiquidScrollPadding(
                 child: Builder(
                   builder: (context) {
-                    capturedBottomPadding = MediaQuery.paddingOf(context)
-                        .bottom;
+                    capturedBottomPadding =
+                        MediaQuery.paddingOf(context).bottom;
                     capturedScope = LiquidScrollPaddingScope.maybeOf(context);
                     return const SizedBox.shrink();
                   },
@@ -3262,6 +3259,115 @@ void main() {
           ),
           isFalse,
         );
+      },
+    );
+  });
+
+  group('LiquidTabBar Droplet Interaction Expansion & Refraction Invariants',
+      () {
+    Positioned findDropletOuterPositioned(WidgetTester tester) {
+      final dropletFinder = find.byWidgetPredicate((w) {
+        if (w is DecoratedBox && w.decoration is BoxDecoration) {
+          final box = w.decoration as BoxDecoration;
+          return box.borderRadius is BorderRadius &&
+              box.boxShadow == null &&
+              box.border == null &&
+              box.gradient == null;
+        }
+        return false;
+      }).first;
+      final positionedAncestors = tester
+          .widgetList<Positioned>(
+            find.ancestor(of: dropletFinder, matching: find.byType(Positioned)),
+          )
+          .toList();
+      // positionedAncestors[0] is inner Positioned inside _lensSurface
+      // positionedAncestors[1] is outer Positioned inside _content
+      expect(positionedAncestors.length, greaterThanOrEqualTo(2));
+      return positionedAncestors[1];
+    }
+
+    testWidgets(
+      'resting droplet geometry is neatly inset within navigation bar bounds',
+      (tester) async {
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          buildBar(items: testItems, selectedIndex: 0, controller: controller),
+        );
+        await tester.pumpAndSettle();
+
+        final droplet = findDropletOuterPositioned(tester);
+        // At rest, height is exactly 56pt and top is exactly 4pt (inset by 4pt from 64pt bar)
+        expect(droplet.height, equals(56.0));
+        expect(droplet.top, equals(4.0));
+        expect(droplet.top! > 0.0, isTrue);
+      },
+    );
+
+    testWidgets(
+      'pointer down and active drag smoothly enlarge droplet and protrude above the bar',
+      (tester) async {
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          buildBar(items: testItems, selectedIndex: 0, controller: controller),
+        );
+        await tester.pumpAndSettle();
+
+        // Initial resting geometry
+        final resting = findDropletOuterPositioned(tester);
+        expect(resting.height, equals(56.0));
+        expect(resting.top, equals(4.0));
+
+        // Pointer down on Home tab
+        final gesture =
+            await tester.startGesture(tester.getCenter(find.text('Home')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 150));
+
+        // When grabbed/held, the droplet swells and top rises above 0pt (protruding outside the bar)
+        final pressed = findDropletOuterPositioned(tester);
+        expect(pressed.height!, greaterThan(56.0));
+        expect(pressed.height!, lessThanOrEqualTo(68.0));
+        expect(pressed.top!, lessThan(0.0)); // Protrudes outside the bar!
+        expect(pressed.top!,
+            greaterThanOrEqualTo(-8.0)); // Finite and controlled overshoot
+
+        // Active drag across toward Orders tab
+        await gesture.moveBy(const Offset(40, 0));
+        await tester.pump(const Duration(milliseconds: 100));
+
+        final dragging = findDropletOuterPositioned(tester);
+        expect(dragging.height!, greaterThan(56.0));
+        expect(dragging.top!, lessThan(0.0)); // Stays protruding during drag
+        expect(dragging.width!,
+            greaterThan(resting.width!)); // Stretches with velocity
+
+        // Release finger
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        // Releases and settles smoothly back to resting geometry
+        final settled = findDropletOuterPositioned(tester);
+        expect(settled.height, equals(56.0));
+        expect(settled.top, equals(4.0));
+      },
+    );
+
+    testWidgets(
+      'folded navigation geometry safeguards prevent protrusion when bar is minimized',
+      (tester) async {
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          buildBar(items: testItems, selectedIndex: 0, controller: controller),
+        );
+        await tester.pumpAndSettle();
+
+        // Minimize / fold the bar
+        controller.minimize();
+        await tester.pumpAndSettle();
+
+        // While folded, tapping to expand does not leak an enlarged droplet outside the folded pill
+        expect(controller.minimized, isTrue);
       },
     );
   });

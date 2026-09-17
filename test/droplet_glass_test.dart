@@ -400,7 +400,8 @@ void main() {
         expect(
           droplet.motionStrength,
           0.0,
-          reason: 'Multiple rapid reversals must leave exactly zero residual motionStrength',
+          reason:
+              'Multiple rapid reversals must leave exactly zero residual motionStrength',
         );
       },
     );
@@ -414,7 +415,7 @@ void main() {
       expect(style.depth, 18.0);
       expect(style.dispersion, 0.0);
       expect(style.specularStrength, 0.15);
-      expect(style.refractionStrength, 1.0);
+      expect(style.refractionStrength, 0.60);
     });
 
     test('All built-in presets keep dispersion at 0.0 by default', () {
@@ -446,12 +447,22 @@ void main() {
     test(
       'DropletRefractionStyle presets have correct relative optical ordering',
       () {
+        const none = DropletRefractionStyle.none();
         const subtle = DropletRefractionStyle.subtle();
         const medium = DropletRefractionStyle.medium();
         const strong = DropletRefractionStyle.strong();
 
+        expect(none.refractionStrength, 0.0);
+        expect(subtle.refractionStrength, equals(0.35));
+        expect(medium.refractionStrength, equals(0.60));
+        expect(strong.refractionStrength, equals(1.00));
+
+        expect(none.refractionStrength, lessThan(subtle.refractionStrength));
         expect(subtle.refractionStrength, lessThan(medium.refractionStrength));
         expect(medium.refractionStrength, lessThan(strong.refractionStrength));
+
+        // Verify medium is softer than old default of 1.0
+        expect(medium.refractionStrength, lessThan(1.0));
 
         expect(subtle.thickness, lessThan(medium.thickness));
         expect(medium.thickness, lessThan(strong.thickness));
@@ -605,7 +616,8 @@ void main() {
         expect(
           droplet.motionStrength,
           0.0,
-          reason: 'Even with extreme refractionStrength: 3.0, settled state must have strictly 0.0 motionStrength',
+          reason:
+              'Even with extreme refractionStrength: 3.0, settled state must have strictly 0.0 motionStrength',
         );
       },
     );
