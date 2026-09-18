@@ -3313,43 +3313,56 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Initial resting geometry
+        // 1. Initial resting geometry: neatly inset in 64pt bar (top=4pt, bottom=60pt, height=56pt)
         final resting = findDropletOuterPositioned(tester);
         expect(resting.height, equals(56.0));
         expect(resting.top, equals(4.0));
+        expect(resting.top! + resting.height!, equals(60.0));
 
-        // Pointer down on Home tab
+        // 2. Pointer down on Home tab and hold to let press spring settle
         final gesture =
             await tester.startGesture(tester.getCenter(find.text('Home')));
         await tester.pump();
-        await tester.pump(const Duration(milliseconds: 150));
+        await tester.pump(const Duration(milliseconds: 350));
 
-        // When grabbed/held, the droplet swells and top rises above 0pt (protruding outside the bar)
+        // When grabbed/held:
+        // - Top rises moderately above the bar (topY ≈ -6.0pt, in target range -5 to -8pt)
+        // - Bottom bulges moderately below the bar (bottomY ≈ 67.0pt, in target range 66 to 69pt)
+        // - Height swells to ≈ 73.0pt (+30.3% compact liquid swelling)
+        // - Width swells conservatively (+5% at zero velocity)
         final pressed = findDropletOuterPositioned(tester);
-        expect(pressed.height!, greaterThan(56.0));
-        expect(pressed.height!, lessThanOrEqualTo(68.0));
-        expect(pressed.top!, lessThan(0.0)); // Protrudes outside the bar!
+        expect(pressed.height!, greaterThanOrEqualTo(71.0));
+        expect(pressed.height!, lessThanOrEqualTo(76.0));
         expect(pressed.top!,
-            greaterThanOrEqualTo(-8.0)); // Finite and controlled overshoot
+            lessThanOrEqualTo(-5.0)); // Protrudes ~6pt ABOVE the bar!
+        expect(
+            pressed.top!, greaterThanOrEqualTo(-8.0)); // Controlled overshoot
+        expect(pressed.top! + pressed.height!,
+            greaterThanOrEqualTo(65.5)); // Bulges ~3pt BELOW the bar!
+        expect(pressed.top! + pressed.height!, lessThanOrEqualTo(69.0));
+        expect(pressed.width!,
+            greaterThan(resting.width! * 1.03)); // Width expansion
+        expect(pressed.width!,
+            lessThan(resting.width! * 1.10)); // Conservative width
 
-        // Active drag across toward Orders tab
+        // 3. Active horizontal drag: stretches width with velocity while preserving liquid silhouette
         await gesture.moveBy(const Offset(40, 0));
-        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump(const Duration(milliseconds: 80));
 
         final dragging = findDropletOuterPositioned(tester);
-        expect(dragging.height!, greaterThan(56.0));
+        expect(dragging.height!, greaterThan(68.0));
         expect(dragging.top!, lessThan(0.0)); // Stays protruding during drag
-        expect(dragging.width!,
-            greaterThan(resting.width!)); // Stretches with velocity
+        expect(
+            dragging.width!, greaterThan(resting.width!)); // Velocity stretch
 
-        // Release finger
+        // 4. Release finger: spring smoothly returns droplet to resting geometry
         await gesture.up();
         await tester.pumpAndSettle();
 
-        // Releases and settles smoothly back to resting geometry
         final settled = findDropletOuterPositioned(tester);
         expect(settled.height, equals(56.0));
         expect(settled.top, equals(4.0));
+        expect(settled.top! + settled.height!, equals(60.0));
       },
     );
 
@@ -3368,6 +3381,141 @@ void main() {
 
         // While folded, tapping to expand does not leak an enlarged droplet outside the folded pill
         expect(controller.minimized, isTrue);
+      },
+    );
+
+    testWidgets(
+      'velocity squash-and-stretch and directional inertia respond cleanly to drag and relax at rest',
+      (tester) async {
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          buildBar(items: testItems, selectedIndex: 0, controller: controller),
+        );
+        await tester.pumpAndSettle();
+
+        final resting = findDropletOuterPositioned(tester);
+
+        // Pointer down and drag rightward
+        final gesture =
+            await tester.startGesture(tester.getCenter(find.text('Home')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 350));
+
+        // Swift drag to tab 2 (40pt rightward step)
+        await gesture.moveBy(const Offset(40, 0));
+        await tester.pump(const Duration(milliseconds: 50));
+
+        final fastDrag = findDropletOuterPositioned(tester);
+        // Under horizontal velocity:
+        // 1. Droplet stretches horizontally (lw > restingW)
+        expect(fastDrag.width!, greaterThan(resting.width!));
+        // 2. Protrusion continues to swell outside bar top and bottom
+        expect(fastDrag.top!, lessThan(0.0));
+        expect(fastDrag.top! + fastDrag.height!, greaterThan(64.0));
+        // 3. Height remains cleanly bounded due to mass conservation
+        expect(fastDrag.height!, lessThanOrEqualTo(76.0));
+
+        // Hold still at target without lifting finger so velocity relaxes to zero
+        await tester.pump(const Duration(milliseconds: 300));
+        final stationaryHeld = findDropletOuterPositioned(tester);
+        // Balanced cohesive blob: top protruding outside bar, bottom bulging below bar
+        expect(stationaryHeld.top!, lessThanOrEqualTo(-5.0));
+        expect(stationaryHeld.top! + stationaryHeld.height!,
+            greaterThanOrEqualTo(65.5));
+        expect(stationaryHeld.top! + stationaryHeld.height!,
+            lessThanOrEqualTo(69.0));
+
+        await gesture.up();
+        await tester.pumpAndSettle();
+        final released = findDropletOuterPositioned(tester);
+        expect(released.top, equals(4.0));
+        expect(released.height, equals(56.0));
+      },
+    );
+
+    testWidgets(
+      'quick normal tap triggers liquid swelling during travel and settles upon arrival',
+      (tester) async {
+        int selectedIndex = 0;
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              return buildBar(
+                items: testItems,
+                selectedIndex: selectedIndex,
+                controller: controller,
+                onSelected: (i) => setState(() => selectedIndex = i),
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 1. Initial state at tab 0: resting droplet
+        final resting = findDropletOuterPositioned(tester);
+        expect(resting.top, equals(4.0));
+        expect(resting.height, equals(56.0));
+
+        // 2. Perform a QUICK TAP on tab 2 ('Me') and release immediately (no hold)
+        await tester.tap(find.text('Me'), warnIfMissed: false);
+        // Pump frame for tap and travel start:
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 160));
+
+        // In mid-travel, finger has ALREADY been lifted, but droplet remains swollen!
+        final midTravel = findDropletOuterPositioned(tester);
+        expect(midTravel.top!, lessThan(0.0)); // Protrudes above bar!
+        expect(midTravel.top! + midTravel.height!,
+            greaterThan(64.0)); // Bulges below bar!
+        expect(midTravel.height!, greaterThan(68.0)); // Swollen liquid mass!
+
+        // 3. Complete travel and pump to let surface tension settle upon arrival
+        await tester.pumpAndSettle();
+
+        // 4. Settled at tab 2: exact original resting geometry
+        final settled = findDropletOuterPositioned(tester);
+        expect(settled.top, equals(4.0));
+        expect(settled.height, equals(56.0));
+        expect(selectedIndex, equals(2));
+      },
+    );
+
+    testWidgets(
+      'rapid repeated tab taps smoothly redirect droplet without stacking bulge size',
+      (tester) async {
+        int selectedIndex = 0;
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              return buildBar(
+                items: testItems,
+                selectedIndex: selectedIndex,
+                controller: controller,
+                onSelected: (i) => setState(() => selectedIndex = i),
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Tap tab 1 ('Orders'), then immediately tap tab 2 ('Me') before arrival
+        await tester.tap(find.text('Orders'), warnIfMissed: false);
+        await tester.pump(const Duration(milliseconds: 60));
+        await tester.tap(find.text('Me'), warnIfMissed: false);
+        await tester.pump(const Duration(milliseconds: 60));
+
+        // Swelling must remain strictly bounded (never double into huge bubble)
+        final rapidTapping = findDropletOuterPositioned(tester);
+        expect(rapidTapping.height!, lessThanOrEqualTo(78.0));
+        expect(rapidTapping.top!, greaterThanOrEqualTo(-9.0));
+
+        await tester.pumpAndSettle();
+        final settled = findDropletOuterPositioned(tester);
+        expect(settled.top, equals(4.0));
+        expect(settled.height, equals(56.0));
+        expect(selectedIndex, equals(2));
       },
     );
   });

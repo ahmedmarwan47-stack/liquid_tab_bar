@@ -425,6 +425,34 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     value: 0,
   );
 
+  /// Travel swelling controller for the droplet during tab-selection transitions.
+  /// Unbounded so the theme's spring carries surface tension and settles organically.
+  late final AnimationController _travelAnim = AnimationController.unbounded(
+    vsync: this,
+    value: 0,
+  );
+  bool _isTraveling = false;
+
+  void _startTravelBulge() {
+    if (_reduced) return;
+    _isTraveling = true;
+    _spring(_travelAnim, 1.0);
+  }
+
+  void _onLensTick() {
+    if (!_isTraveling) return;
+    final inner = _innerIndexFromOriginal(widget.selectedIndex);
+    final activeV = _visualSlot(inner);
+    if (activeV == null) return;
+    final dist = (_lens.value - activeV.toDouble()).abs();
+    final speed = _lensVelocity.abs();
+    // When the droplet docks into the target tab slot, trigger surface-tension settle
+    if (dist < 0.15 && speed < 1.5) {
+      _isTraveling = false;
+      _spring(_travelAnim, 0.0);
+    }
+  }
+
   /// The visual slot under the finger while scrubbing — a tick every time it
   /// changes.
   int? _hover;
@@ -564,6 +592,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
       _lens,
       _relax,
       _pressAnim,
+      _travelAnim,
       _searchAnim,
     ]);
   }
@@ -571,6 +600,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
   @override
   void initState() {
     super.initState();
+    _lens.addListener(_onLensTick);
     _updateListenable();
     _listen();
     _prewarmSearchText();
@@ -748,22 +778,28 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     }
     if (old.selectedIndex != widget.selectedIndex && !_scrubbing) {
       final inner = _innerIndexFromOriginal(widget.selectedIndex);
-      final v = _visualSlot(inner);
-      if (v != null) _spring(_lens, v.toDouble());
+      final v = inner == null ? null : _visualSlot(inner);
+      if (v != null) {
+        if ((_lens.value - v.toDouble()).abs() > 0.05) {
+          _startTravelBulge();
+        }
+        _spring(_lens, v.toDouble());
+      }
     }
   }
 
   @override
   void dispose() {
+    _lens.removeListener(_onLensTick);
     _listening?.removeListener(_onNav);
     if (_searchFocusListener != null) {
-      _searchAnim.removeStatusListener(_searchFocusListener!);
       _searchFocusListener = null;
     }
     _fold.dispose();
     _lens.dispose();
     _relax.dispose();
     _pressAnim.dispose();
+    _travelAnim.dispose();
     _searchAnim.dispose();
     _internalSearchController.dispose();
     _internalSearchFocusNode.dispose();
@@ -807,6 +843,10 @@ class _LiquidTabBarState extends State<LiquidTabBar>
         .then((_) {
       if (mounted && generation == _springGenerations[c]) {
         c.value = target;
+        if (c == _lens && _isTraveling) {
+          _isTraveling = false;
+          _spring(_travelAnim, 0.0);
+        }
         setState(() {});
       }
     }).catchError((_) {});
@@ -1472,15 +1512,17 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     if (activeV != null && lensFade > 0) {
       final v = _lens.value;
       final speed = _lensVelocity.abs();
-      final stretch = (speed * 0.055).clamp(0.0, 0.45);
-      // Interactive expansion: grabbed/held droplet swells smoothly and rises
-      // slightly outside the top bar boundary on the theme's spring.
-      // Clamped to 1.15 to ensure spring overshoot remains controlled and finite.
-      final p = _pressAnim.value.clamp(0.0, 1.15);
-      final effectivePress = p * (1.0 - tt) * (1.0 - s);
-      final pressScaleH = 1.0 + 0.18 * effectivePress;
-      final pressScaleW = 1.0 + 0.08 * effectivePress;
-      final liftY = 5.0 * effectivePress;
+      // Subtle directional stretch reacting gently to velocity (+15% to +20% max):
+      final stretch = (speed * 0.030).clamp(0.0, 0.15);
+
+      // Liquid deformation architecture:
+      // 1. interactionBulge: finger-driven press/hold state (via _pressAnim)
+      // 2. travelBulge: selected-tab movement state (via _travelAnim)
+      // 3. Combined safely via math.max to guarantee deformation never doubles or stacks
+      final interactionBulge = _pressAnim.value.clamp(0.0, 1.15);
+      final travelBulge = _travelAnim.value.clamp(0.0, 1.15);
+      final rawBulge = math.max(interactionBulge, travelBulge);
+      final effectiveBulge = rawBulge * (1.0 - tt) * (1.0 - s);
       final distFromSlot = (v - v.round()).abs();
       final scrubBetween =
           _scrubbing ? (distFromSlot * 2.0).clamp(0.0, 1.0) : 0.0;
@@ -1511,20 +1553,38 @@ class _LiquidTabBarState extends State<LiquidTabBar>
       final isDark = th.barStyle.blurTint.computeLuminance() < 0.2;
       final style = isDark ? _darkDropletGlass : _lightDropletGlass;
       lensStyle = style;
-      // Authentic droplet geometry:
-      // At rest, height is (barHeight - 2 * _lensInset) = 56pt with 4pt margin top/bottom.
-      // When grabbed/held/scrubbed, it smoothly swells (~66pt) and extends outside the top bar boundary.
-      // During motion, it stretches horizontally with velocity while preserving liquid feel.
-      final restingH = (LiquidTabBar.barHeight - 2 * LiquidTabBar._lensInset);
+
+      final restingTop = LiquidTabBar._lensInset;
+      final restingBottom = LiquidTabBar.barHeight - LiquidTabBar._lensInset;
+      // Controlled, authentic Apple Liquid Glass bulge:
+      // - At rest: top = 4.0pt, bottom = 60.0pt, height = 56.0pt
+      // - Peak held / travel bulge:
+      //   top protrusion: ~6.0pt above the bar (topY ≈ -6.0pt, in target range 5–8pt)
+      //   bottom protrusion: ~3.0pt below the bar (bottomY ≈ 67.0pt, in target range 2–5pt)
+      //   height: ~73.0pt (+30.3% vertical liquid swelling, compact and clearly noticeable)
+      //   width: +5% at zero velocity (restingW * 1.05, in target range 4–7%)
+      //   max velocity stretch: +20.75% max horizontal expansion under travel/drag
+      final deltaTop = 10.0 * effectiveBulge;
+      final deltaBottom = 7.0 * effectiveBulge;
+
+      // Velocity squash-and-stretch: horizontal velocity gently stretches width while
+      // slightly relaxing vertical protrusion to preserve liquid mass under surface tension:
+      final topY = restingTop - deltaTop * (1.0 - stretch * 0.12);
+      final bottomY = restingBottom + deltaBottom * (1.0 - stretch * 0.10);
+      final lh = bottomY - topY;
+
+      // Width swells conservatively (+5% at zero velocity) with subtle drag/travel stretch:
       final restingW = (g.slotW + LiquidTabBar._lensOverhang);
-      final lh = restingH * (1 - stretch * 0.08) * pressScaleH;
-      final lw = restingW * (1 + stretch) * pressScaleW;
+      final lw = restingW * (1.0 + stretch) * (1.0 + 0.05 * effectiveBulge);
       lensW = lw;
       lensH = lh;
-      final normalCx = g.slotCenterX(v) - rect.left + shift;
+
+      // Subtle directional inertia: droplet shifts gently along movement direction:
+      final inertiaLean = (_lensVelocity * 0.8).clamp(-1.5, 1.5) * (1.0 - tt);
+      final normalCx = g.slotCenterX(v) - rect.left + shift + inertiaLean;
       final cx = ui.lerpDouble(normalCx, rect.width / 2, s)!;
       lensCxLocal = cx;
-      final cy = LiquidTabBar.barHeight / 2 - rect.top - liftY;
+      final cy = (topY + bottomY) / 2.0 - rect.top;
       lensCy = cy;
       final lensPad = m == LiquidTabBarMaterial.glass ? 6.0 : 0.0;
       children.add(
@@ -2007,7 +2067,12 @@ class _LiquidTabBarState extends State<LiquidTabBar>
   void _cancel() {
     _activePointer = null;
     final v = _visualSlot(widget.selectedIndex);
-    if (v != null) _spring(_lens, v.toDouble());
+    if (v != null) {
+      if ((_lens.value - v.toDouble()).abs() > 0.05) {
+        _startTravelBulge();
+      }
+      _spring(_lens, v.toDouble());
+    }
     _release();
   }
 
@@ -2064,6 +2129,9 @@ class _LiquidTabBarState extends State<LiquidTabBar>
 
   void _choose(int v, {double? velocity}) {
     _nav.expand();
+    if ((_lens.value - v.toDouble()).abs() > 0.05) {
+      _startTravelBulge();
+    }
     _spring(_lens, v.toDouble(), velocity: velocity);
     final originalIndex = _originalIndexFromInner(_indexAtVisual(v));
     widget.onSelected?.call(originalIndex);
