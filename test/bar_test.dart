@@ -116,8 +116,8 @@ void main() {
         ),
       );
 
-      final centerFirst = tester.getCenter(find.text('Home'));
-      final centerSecond = tester.getCenter(find.text('Orders'));
+      final centerFirst = tester.getCenter(find.text('Orders'));
+      final centerSecond = tester.getCenter(find.text('Me'));
 
       // Start first pointer
       final gesture1 = await tester.startGesture(centerFirst, pointer: 1);
@@ -142,7 +142,7 @@ void main() {
       await gesture1.up();
       await tester.pumpAndSettle();
 
-      expect(selected, equals(0));
+      expect(selected, equals(1));
     });
   });
 
@@ -613,9 +613,9 @@ void main() {
         final actionCenterExpanded = tester.getCenter(actionFinder);
         expect(actionCenterExpanded.dx, equals(748.0));
 
-        // Tap tab 1 to verify instant opaque selection sync before fold
+        // Tap tab 1 to verify opaque selection sync before fold
         await tester.tap(find.text('Orders'), warnIfMissed: false);
-        await tester.pump();
+        await tester.pumpAndSettle();
         expect(selected, equals(1));
 
         // Fold to oval
@@ -3516,6 +3516,1143 @@ void main() {
         expect(settled.top, equals(4.0));
         expect(settled.height, equals(56.0));
         expect(selectedIndex, equals(2));
+      },
+    );
+
+    testWidgets(
+      'holding a destination tab initiates immediate travel and maintains held swelling until release',
+      (tester) async {
+        int selectedIndex = 0;
+        final calls = <int>[];
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              return buildBar(
+                items: testItems,
+                selectedIndex: selectedIndex,
+                controller: controller,
+                onSelected: (i) {
+                  calls.add(i);
+                  setState(() => selectedIndex = i);
+                },
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 1. Current tab = 0 (Home). Droplet at resting size.
+        final resting = findDropletOuterPositioned(tester);
+        expect(resting.top, equals(4.0));
+        expect(resting.height, equals(56.0));
+        expect(calls, isEmpty);
+
+        // 2. PointerDown on tab 2 ('Me') WITHOUT pointerUp.
+        final targetCenter = tester.getCenter(find.text('Me'));
+        final gesture = await tester.startGesture(targetCenter);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 150));
+
+        // 3. Verify droplet begins traveling toward 'Me' immediately and travelBulge is active.
+        final inFlight = findDropletOuterPositioned(tester);
+        expect(inFlight.top!, lessThan(0.0)); // Protrudes above bar
+        expect(inFlight.height!, greaterThan(68.0)); // Liquid swelling active
+
+        // 4. Keep pointer held until travel completes (350ms).
+        await tester.pump(const Duration(milliseconds: 350));
+
+        // 5. Droplet ends centered on 'Me' and remains swollen in grabbed liquid state while held.
+        final heldAtDest = findDropletOuterPositioned(tester);
+        expect(heldAtDest.top!,
+            lessThanOrEqualTo(-5.0)); // Still protruding above bar!
+        expect(heldAtDest.top! + heldAtDest.height!,
+            greaterThanOrEqualTo(65.5)); // Still bulging below bar!
+        expect(heldAtDest.height!,
+            greaterThanOrEqualTo(71.0)); // Held liquid swelling!
+        expect(heldAtDest.height!,
+            lessThanOrEqualTo(76.0)); // Strictly bounded, not doubled!
+
+        // 6. PointerUp: release finger.
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        // 7. Verify droplet performs small surface-tension settle to resting geometry.
+        final settled = findDropletOuterPositioned(tester);
+        expect(settled.top, equals(4.0));
+        expect(settled.height, equals(56.0));
+        expect(settled.top! + settled.height!, equals(60.0));
+
+        // 8. Verify destination 'Me' (index 2) remains selected and callback reported exactly once.
+        expect(selectedIndex, equals(2));
+        expect(calls, equals([2]));
+      },
+    );
+
+    testWidgets(
+      'empty-space interactions do not activate droplet swelling or change selection',
+      (tester) async {
+        int selectedIndex = 0;
+        final calls = <int>[];
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              return buildBar(
+                items: testItems,
+                selectedIndex: selectedIndex,
+                controller: controller,
+                onSelected: (i) {
+                  calls.add(i);
+                  setState(() => selectedIndex = i);
+                },
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final homeCenter = tester.getCenter(find.text('Home'));
+        final ordersCenter = tester.getCenter(find.text('Orders'));
+        final barFinder = find.byType(LiquidTabBar);
+        final barRect = tester.getRect(barFinder);
+        final resting = findDropletOuterPositioned(tester);
+
+        // a. Press between two tabs (midway between Home and Orders)
+        final betweenTabs =
+            Offset((homeCenter.dx + ordersCenter.dx) / 2, homeCenter.dy);
+        final gestureBetween = await tester.startGesture(betweenTabs);
+        await tester.pump(const Duration(milliseconds: 250));
+        expect(findDropletOuterPositioned(tester).top, equals(4.0));
+        expect(findDropletOuterPositioned(tester).height, equals(56.0));
+        await gestureBetween.up();
+        await tester.pumpAndSettle();
+        expect(calls, isEmpty);
+        expect(selectedIndex, equals(0));
+
+        // b. Press above icon but inside bar (y = barRect.top + 2.0)
+        final aboveIcon = Offset(homeCenter.dx, barRect.top + 2.0);
+        final gestureAbove = await tester.startGesture(aboveIcon);
+        await tester.pump(const Duration(milliseconds: 250));
+        expect(findDropletOuterPositioned(tester).top, equals(4.0));
+        expect(findDropletOuterPositioned(tester).height, equals(56.0));
+        await gestureAbove.up();
+        await tester.pumpAndSettle();
+        expect(calls, isEmpty);
+        expect(selectedIndex, equals(0));
+
+        // c. Press below label but inside bar (y = barRect.bottom - 2.0)
+        final belowLabel = Offset(homeCenter.dx, barRect.bottom - 2.0);
+        final gestureBelow = await tester.startGesture(belowLabel);
+        await tester.pump(const Duration(milliseconds: 250));
+        expect(findDropletOuterPositioned(tester).top, equals(4.0));
+        expect(findDropletOuterPositioned(tester).height, equals(56.0));
+        await gestureBelow.up();
+        await tester.pumpAndSettle();
+        expect(calls, isEmpty);
+        expect(selectedIndex, equals(0));
+
+        // d. Press near left bar edge
+        final leftEdge = Offset(barRect.left + 2.0, homeCenter.dy);
+        final gestureLeft = await tester.startGesture(leftEdge);
+        await tester.pump(const Duration(milliseconds: 250));
+        expect(findDropletOuterPositioned(tester).top, equals(4.0));
+        expect(findDropletOuterPositioned(tester).height, equals(56.0));
+        await gestureLeft.up();
+        await tester.pumpAndSettle();
+        expect(calls, isEmpty);
+        expect(selectedIndex, equals(0));
+
+        // e. Press near right bar edge
+        final rightEdge = Offset(barRect.right - 2.0, homeCenter.dy);
+        final gestureRight = await tester.startGesture(rightEdge);
+        await tester.pump(const Duration(milliseconds: 250));
+        expect(findDropletOuterPositioned(tester).top, equals(4.0));
+        expect(findDropletOuterPositioned(tester).height, equals(56.0));
+        await gestureRight.up();
+        await tester.pumpAndSettle();
+        expect(calls, isEmpty);
+        expect(selectedIndex, equals(0));
+
+        // f. Press immediately beside current droplet
+        final besideDroplet =
+            Offset(homeCenter.dx + resting.width! / 2 + 3.0, homeCenter.dy);
+        final gestureBeside = await tester.startGesture(besideDroplet);
+        await tester.pump(const Duration(milliseconds: 250));
+        expect(findDropletOuterPositioned(tester).top, equals(4.0));
+        expect(findDropletOuterPositioned(tester).height, equals(56.0));
+        await gestureBeside.up();
+        await tester.pumpAndSettle();
+        expect(calls, isEmpty);
+        expect(selectedIndex, equals(0));
+      },
+    );
+
+    testWidgets(
+      'empty-space press during active travel does not amplify or restart the bulge',
+      (tester) async {
+        int selectedIndex = 0;
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              return buildBar(
+                items: testItems,
+                selectedIndex: selectedIndex,
+                controller: controller,
+                onSelected: (i) => setState(() => selectedIndex = i),
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final homeCenter = tester.getCenter(find.text('Home'));
+        final ordersCenter = tester.getCenter(find.text('Orders'));
+        final betweenTabs =
+            Offset((homeCenter.dx + ordersCenter.dx) / 2, homeCenter.dy);
+
+        // 1. Initiate quick tap travel from Home to Me
+        await tester.tap(find.text('Me'), warnIfMissed: false);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 80));
+
+        // 2. In mid-flight, an empty-space press occurs
+        final emptyGesture = await tester.startGesture(betweenTabs, pointer: 5);
+        await tester.pump(const Duration(milliseconds: 60));
+
+        // 3. Bulge must remain bounded and not restart or blow up
+        final inFlight = findDropletOuterPositioned(tester);
+        expect(inFlight.height!, lessThanOrEqualTo(76.0));
+        expect(inFlight.top!, greaterThanOrEqualTo(-8.0));
+
+        await emptyGesture.up();
+        await tester.pumpAndSettle();
+
+        // 4. Settles cleanly at Me
+        final settled = findDropletOuterPositioned(tester);
+        expect(settled.top, equals(4.0));
+        expect(settled.height, equals(56.0));
+        expect(selectedIndex, equals(2));
+      },
+    );
+
+    testWidgets(
+      'holding current droplet does not change selection and settles on release',
+      (tester) async {
+        int selectedIndex = 0;
+        final calls = <int>[];
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              return buildBar(
+                items: testItems,
+                selectedIndex: selectedIndex,
+                controller: controller,
+                onSelected: (i) {
+                  calls.add(i);
+                  setState(() => selectedIndex = i);
+                },
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Pointer down on Home tab (current droplet) and hold
+        final gesture =
+            await tester.startGesture(tester.getCenter(find.text('Home')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 350));
+
+        // Droplet swells while held
+        final pressed = findDropletOuterPositioned(tester);
+        expect(pressed.top!, lessThanOrEqualTo(-5.0));
+        expect(pressed.height!, greaterThanOrEqualTo(71.0));
+
+        // Release finger without dragging
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        // Settles back to resting geometry
+        final settled = findDropletOuterPositioned(tester);
+        expect(settled.top, equals(4.0));
+        expect(settled.height, equals(56.0));
+        expect(selectedIndex, equals(0));
+        expect(calls, isEmpty);
+      },
+    );
+
+    testWidgets(
+      'starting drag on droplet and moving outside initial bounds preserves gesture ownership until release',
+      (tester) async {
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          buildBar(items: testItems, selectedIndex: 0, controller: controller),
+        );
+        await tester.pumpAndSettle();
+
+        // Pointer down directly on Home droplet
+        final gesture =
+            await tester.startGesture(tester.getCenter(find.text('Home')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        // Move far vertically and horizontally outside initial droplet box
+        await gesture.moveBy(const Offset(60, -30));
+        await tester.pump(const Duration(milliseconds: 80));
+
+        // Droplet is still tracking gesture ownership
+        final dragging = findDropletOuterPositioned(tester);
+        expect(dragging.top!, lessThan(0.0));
+        expect(dragging.width!, greaterThan(56.0));
+
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        final settled = findDropletOuterPositioned(tester);
+        expect(settled.top, equals(4.0));
+        expect(settled.height, equals(56.0));
+      },
+    );
+  });
+
+  group(
+      'LiquidTabBar Deferred Commit & Gesture Ownership Invariants (12 Scenarios)',
+      () {
+    Positioned findDropletOuterPositioned(WidgetTester tester) {
+      final dropletFinder = find.byWidgetPredicate((w) {
+        if (w is DecoratedBox && w.decoration is BoxDecoration) {
+          final box = w.decoration as BoxDecoration;
+          return box.borderRadius is BorderRadius &&
+              box.boxShadow == null &&
+              box.border == null &&
+              box.gradient == null;
+        }
+        return false;
+      }).first;
+      final positionedAncestors = tester
+          .widgetList<Positioned>(
+            find.ancestor(of: dropletFinder, matching: find.byType(Positioned)),
+          )
+          .toList();
+      expect(positionedAncestors.length, greaterThanOrEqualTo(2));
+      return positionedAncestors[1];
+    }
+
+    testWidgets(
+      'Scenario 1: PointerDown B while A committed: droplet begins traveling but A remains committed',
+      (tester) async {
+        int selectedIndex = 0;
+        final calls = <int>[];
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              return buildBar(
+                items: testItems,
+                selectedIndex: selectedIndex,
+                controller: controller,
+                onSelected: (i) {
+                  calls.add(i);
+                  setState(() => selectedIndex = i);
+                },
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final initialDroplet = findDropletOuterPositioned(tester);
+        final gesture =
+            await tester.startGesture(tester.getCenter(find.text('Orders')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 60));
+
+        // Droplet has started traveling (left position moved towards Orders)
+        final movingDroplet = findDropletOuterPositioned(tester);
+        expect(movingDroplet.left!, greaterThan(initialDroplet.left!));
+
+        // Committed page remains A (Home, index 0)
+        expect(selectedIndex, equals(0));
+        expect(calls, isEmpty);
+
+        await gesture.up();
+        await tester.pumpAndSettle();
+      },
+    );
+
+    testWidgets(
+      'Scenario 2: Hold until droplet reaches B: A page/index remains committed while pointer is down',
+      (tester) async {
+        int selectedIndex = 0;
+        final calls = <int>[];
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              return buildBar(
+                items: testItems,
+                selectedIndex: selectedIndex,
+                controller: controller,
+                onSelected: (i) {
+                  calls.add(i);
+                  setState(() => selectedIndex = i);
+                },
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Pointer down on Orders (B) and hold until arrival (350ms)
+        final gesture =
+            await tester.startGesture(tester.getCenter(find.text('Orders')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 350));
+
+        // Droplet has physically arrived at Orders and remains swollen in grabbed state
+        final arrivedDroplet = findDropletOuterPositioned(tester);
+        expect(arrivedDroplet.top!, lessThanOrEqualTo(-5.0));
+        expect(arrivedDroplet.height!, greaterThanOrEqualTo(71.0));
+
+        // BUT Home (A) remains committed because finger is still down
+        expect(selectedIndex, equals(0));
+        expect(calls, isEmpty);
+
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(selectedIndex, equals(1));
+        expect(calls, equals([1]));
+      },
+    );
+
+    testWidgets(
+      'Scenario 3: Move pointer after droplet reaches B: droplet follows pointer continuously',
+      (tester) async {
+        int selectedIndex = 0;
+        final calls = <int>[];
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              return buildBar(
+                items: testItems,
+                selectedIndex: selectedIndex,
+                controller: controller,
+                onSelected: (i) {
+                  calls.add(i);
+                  setState(() => selectedIndex = i);
+                },
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 1. Hold until arrival at Orders (Tab 1)
+        final gesture =
+            await tester.startGesture(tester.getCenter(find.text('Orders')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 350));
+        final posAtOrders = findDropletOuterPositioned(tester);
+
+        // 2. Move pointer toward Me (Tab 2)
+        await gesture.moveBy(const Offset(40, 0));
+        await tester.pump(const Duration(milliseconds: 50));
+
+        final posFollowing = findDropletOuterPositioned(tester);
+        expect(posFollowing.left!, greaterThan(posAtOrders.left!));
+        expect(selectedIndex, equals(0)); // Still not committed!
+        expect(calls, isEmpty);
+
+        await gesture.up();
+        await tester.pumpAndSettle();
+      },
+    );
+
+    testWidgets(
+      'Scenario 4: Drag from B toward C while held: pending destination updates but committed index remains A',
+      (tester) async {
+        int selectedIndex = 0;
+        final calls = <int>[];
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              return buildBar(
+                items: testItems,
+                selectedIndex: selectedIndex,
+                controller: controller,
+                onSelected: (i) {
+                  calls.add(i);
+                  setState(() => selectedIndex = i);
+                },
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Down on Orders (B)
+        final ordersCenter = tester.getCenter(find.text('Orders'));
+        final meCenter = tester.getCenter(find.text('Me'));
+        final gesture = await tester.startGesture(ordersCenter);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 200));
+
+        // Drag from Orders toward Me (C)
+        await gesture.moveTo(meCenter);
+        await tester.pump(const Duration(milliseconds: 60));
+
+        // While held at C, committed index is STILL Home (A, 0)
+        expect(selectedIndex, equals(0));
+        expect(calls, isEmpty);
+
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(selectedIndex, equals(2));
+      },
+    );
+
+    testWidgets(
+      'Scenario 5: Release at C: no immediate stale/intermediate commit',
+      (tester) async {
+        int selectedIndex = 0;
+        final calls = <int>[];
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              return buildBar(
+                items: testItems,
+                selectedIndex: selectedIndex,
+                controller: controller,
+                onSelected: (i) {
+                  calls.add(i);
+                  setState(() => selectedIndex = i);
+                },
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final ordersCenter = tester.getCenter(find.text('Orders'));
+        final meCenter = tester.getCenter(find.text('Me'));
+        final gesture = await tester.startGesture(ordersCenter);
+        await tester.pump();
+        await gesture.moveTo(meCenter);
+        await tester.pump(const Duration(milliseconds: 50));
+
+        // Release at Me (C)
+        await gesture.up();
+        // Immediately on release (before settle completes):
+        await tester.pump(const Duration(milliseconds: 10));
+
+        // Intermediate tab (Orders, 1) must NEVER have been emitted
+        expect(calls.contains(1), isFalse);
+
+        await tester.pumpAndSettle();
+        expect(selectedIndex, equals(2));
+        expect(calls, equals([2]));
+      },
+    );
+
+    testWidgets(
+      'Scenario 6: After droplet settles at C: committed index becomes C exactly once',
+      (tester) async {
+        int selectedIndex = 0;
+        final calls = <int>[];
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              return buildBar(
+                items: testItems,
+                selectedIndex: selectedIndex,
+                controller: controller,
+                onSelected: (i) {
+                  calls.add(i);
+                  setState(() => selectedIndex = i);
+                },
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final gesture =
+            await tester.startGesture(tester.getCenter(find.text('Orders')));
+        await tester.pump();
+        await gesture.moveTo(tester.getCenter(find.text('Me')));
+        await tester.pump(const Duration(milliseconds: 50));
+        await gesture.up();
+
+        await tester.pumpAndSettle();
+
+        // Committed index becomes Me (2) exactly once
+        expect(selectedIndex, equals(2));
+        expect(calls, equals([2]));
+      },
+    );
+
+    testWidgets(
+      'Scenario 7: Quick tap B: pointerUp occurs before arrival; A remains committed during travel; B commits only after arrival/settle',
+      (tester) async {
+        int selectedIndex = 0;
+        final calls = <int>[];
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              return buildBar(
+                items: testItems,
+                selectedIndex: selectedIndex,
+                controller: controller,
+                onSelected: (i) {
+                  calls.add(i);
+                  setState(() => selectedIndex = i);
+                },
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Quick tap on Orders (down and up in 20ms)
+        final gesture =
+            await tester.startGesture(tester.getCenter(find.text('Orders')));
+        await tester.pump(const Duration(milliseconds: 20));
+        await gesture.up();
+
+        // Mid-travel frame: 80ms into flight
+        await tester.pump(const Duration(milliseconds: 80));
+        expect(selectedIndex, equals(0)); // Still Home!
+        expect(calls, isEmpty);
+
+        // Allow travel and liquid settle to complete
+        await tester.pumpAndSettle();
+        expect(selectedIndex, equals(1));
+        expect(calls, equals([1]));
+      },
+    );
+
+    testWidgets(
+      'Scenario 8: Move finger before initial arrival: droplet redirects smoothly toward current held pointer',
+      (tester) async {
+        int selectedIndex = 0;
+        final calls = <int>[];
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              return buildBar(
+                items: testItems,
+                selectedIndex: selectedIndex,
+                controller: controller,
+                onSelected: (i) {
+                  calls.add(i);
+                  setState(() => selectedIndex = i);
+                },
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Pointer down on Orders
+        final gesture =
+            await tester.startGesture(tester.getCenter(find.text('Orders')));
+        await tester.pump(const Duration(milliseconds: 30));
+
+        // Redirect before reaching Orders: drag back to Home
+        await gesture.moveTo(tester.getCenter(find.text('Home')));
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(selectedIndex, equals(0));
+        expect(calls, isEmpty);
+
+        // Release at Home
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        // Orders was never committed, and Home emits no duplicate
+        expect(selectedIndex, equals(0));
+        expect(calls, isEmpty);
+      },
+    );
+
+    testWidgets(
+      'Scenario 9: Intermediate tabs never emit committed callbacks',
+      (tester) async {
+        int selectedIndex = 0;
+        final calls = <int>[];
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              return buildBar(
+                items: [
+                  LiquidTabItem.icon(label: 'Tab0', icon: Icons.home),
+                  LiquidTabItem.icon(label: 'Tab1', icon: Icons.star),
+                  LiquidTabItem.icon(label: 'Tab2', icon: Icons.favorite),
+                  LiquidTabItem.icon(label: 'Tab3', icon: Icons.person),
+                ],
+                selectedIndex: selectedIndex,
+                controller: controller,
+                onSelected: (i) {
+                  calls.add(i);
+                  setState(() => selectedIndex = i);
+                },
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final t0 = tester.getCenter(find.text('Tab0'));
+        final t1 = tester.getCenter(find.text('Tab1'));
+        final t2 = tester.getCenter(find.text('Tab2'));
+        final t3 = tester.getCenter(find.text('Tab3'));
+
+        final gesture = await tester.startGesture(t0);
+        await tester.pump();
+        await gesture.moveTo(t1);
+        await tester.pump(const Duration(milliseconds: 30));
+        await gesture.moveTo(t2);
+        await tester.pump(const Duration(milliseconds: 30));
+        await gesture.moveTo(t3);
+        await tester.pump(const Duration(milliseconds: 30));
+
+        // While scrubbing across Tab1 and Tab2, no calls were emitted
+        expect(calls, isEmpty);
+
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        // Only Tab3 commits!
+        expect(selectedIndex, equals(3));
+        expect(calls, equals([3]));
+      },
+    );
+
+    testWidgets(
+      'Scenario 10: Empty-space press remains inert and does not cancel in-flight travel',
+      (tester) async {
+        int selectedIndex = 0;
+        final calls = <int>[];
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              return buildBar(
+                items: testItems,
+                selectedIndex: selectedIndex,
+                controller: controller,
+                onSelected: (i) {
+                  calls.add(i);
+                  setState(() => selectedIndex = i);
+                },
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final homeCenter = tester.getCenter(find.text('Home'));
+        final ordersCenter = tester.getCenter(find.text('Orders'));
+        final betweenTabs =
+            Offset((homeCenter.dx + ordersCenter.dx) / 2, homeCenter.dy);
+
+        // 1. Static empty-space press: droplet remains at rest
+        final emptyGesture1 = await tester.startGesture(betweenTabs);
+        await tester.pump(const Duration(milliseconds: 100));
+        final resting = findDropletOuterPositioned(tester);
+        expect(resting.top, equals(4.0));
+        expect(resting.height, equals(56.0));
+        await emptyGesture1.up();
+        await tester.pumpAndSettle();
+        expect(calls, isEmpty);
+
+        // 2. In-flight travel: tap Me
+        await tester.tap(find.text('Me'), warnIfMissed: false);
+        await tester.pump(const Duration(milliseconds: 50));
+
+        // Press and release empty space while droplet is traveling
+        final emptyGesture2 =
+            await tester.startGesture(betweenTabs, pointer: 9);
+        await tester.pump(const Duration(milliseconds: 30));
+        await emptyGesture2.up();
+
+        // Empty space must NOT cancel travel to Me
+        await tester.pumpAndSettle();
+        expect(selectedIndex, equals(2));
+        expect(calls, equals([2]));
+      },
+    );
+
+    testWidgets(
+      'Scenario 11: Press/release current droplet without destination change emits no duplicate selection',
+      (tester) async {
+        int selectedIndex = 0;
+        final calls = <int>[];
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              return buildBar(
+                items: testItems,
+                selectedIndex: selectedIndex,
+                controller: controller,
+                onSelected: (i) {
+                  calls.add(i);
+                  setState(() => selectedIndex = i);
+                },
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Pointer down on current droplet (Home)
+        final gesture =
+            await tester.startGesture(tester.getCenter(find.text('Home')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 250));
+
+        // Swells while held
+        final pressed = findDropletOuterPositioned(tester);
+        expect(pressed.top!, lessThanOrEqualTo(-5.0));
+
+        // Release without moving
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        // Settles back to resting geometry, no duplicate callback emitted
+        final settled = findDropletOuterPositioned(tester);
+        expect(settled.top, equals(4.0));
+        expect(settled.height, equals(56.0));
+        expect(selectedIndex, equals(0));
+        expect(calls, isEmpty);
+      },
+    );
+
+    testWidgets(
+      'Scenario 12: Rapid destination changes cannot allow an old animation completion to commit a stale index',
+      (tester) async {
+        int selectedIndex = 0;
+        final calls = <int>[];
+        final controller = LiquidTabBarController();
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              return buildBar(
+                items: testItems,
+                selectedIndex: selectedIndex,
+                controller: controller,
+                onSelected: (i) {
+                  calls.add(i);
+                  setState(() => selectedIndex = i);
+                },
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Quick tap on Orders (Tab 1)
+        await tester.tap(find.text('Orders'), warnIfMissed: false);
+        // Before Orders settles, immediately tap Me (Tab 2)
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.tap(find.text('Me'), warnIfMissed: false);
+
+        // Pump through completion
+        await tester.pumpAndSettle();
+
+        // Only Tab 2 commits; Tab 1 is never committed
+        expect(selectedIndex, equals(2));
+        expect(calls, equals([2]));
+      },
+    );
+  });
+
+  group('LiquidTabBar API Request Safety & Side-Effect Boundary Invariants',
+      () {
+    final fourTabs = [
+      LiquidTabItem.icon(label: 'Home', icon: Icons.home),
+      LiquidTabItem.icon(label: 'Search', icon: Icons.search),
+      LiquidTabItem.icon(label: 'Orders', icon: Icons.receipt),
+      LiquidTabItem.icon(label: 'Profile', icon: Icons.person),
+    ];
+
+    testWidgets(
+      'scrubbing across tabs commits only final destination once',
+      (tester) async {
+        int callbackCount = 0;
+        int? lastCommittedIndex;
+        int selectedIndex = 0;
+        final controller = LiquidTabBarController();
+
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              return buildBar(
+                items: fourTabs,
+                selectedIndex: selectedIndex,
+                controller: controller,
+                onSelected: (i) {
+                  callbackCount++;
+                  lastCommittedIndex = i;
+                  setState(() => selectedIndex = i);
+                },
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final homeCenter = tester.getCenter(find.text('Home'));
+        final searchCenter = tester.getCenter(find.text('Search'));
+        final ordersCenter = tester.getCenter(find.text('Orders'));
+        final profileCenter = tester.getCenter(find.text('Profile'));
+
+        // Pointer down on droplet (Home)
+        final gesture = await tester.startGesture(homeCenter);
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(callbackCount, equals(0));
+
+        // Move across: 1 -> 2 -> 3 -> 1 -> 3 -> 2
+        await gesture.moveTo(searchCenter);
+        await tester.pump(const Duration(milliseconds: 60));
+        expect(callbackCount, equals(0));
+
+        await gesture.moveTo(ordersCenter);
+        await tester.pump(const Duration(milliseconds: 60));
+        expect(callbackCount, equals(0));
+
+        await gesture.moveTo(profileCenter);
+        await tester.pump(const Duration(milliseconds: 60));
+        expect(callbackCount, equals(0));
+
+        await gesture.moveTo(searchCenter);
+        await tester.pump(const Duration(milliseconds: 60));
+        expect(callbackCount, equals(0));
+
+        await gesture.moveTo(profileCenter);
+        await tester.pump(const Duration(milliseconds: 60));
+        expect(callbackCount, equals(0));
+
+        await gesture.moveTo(ordersCenter);
+        await tester.pump(const Duration(milliseconds: 60));
+        expect(callbackCount, equals(0));
+
+        // Release on 2 (Orders)
+        await gesture.up();
+
+        // While final settle is incomplete
+        await tester.pump(const Duration(milliseconds: 20));
+        expect(callbackCount, equals(0));
+
+        // After final settle
+        await tester.pumpAndSettle();
+        expect(callbackCount, equals(1));
+        expect(lastCommittedIndex, equals(2));
+        expect(selectedIndex, equals(2));
+
+        // Pump additional frames afterward: callback count must STILL equal 1
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(callbackCount, equals(1));
+        expect(lastCommittedIndex, equals(2));
+      },
+    );
+
+    testWidgets(
+      'rapid taps: A -> tap B -> before settle tap C -> before settle tap D commits only D once',
+      (tester) async {
+        int callbackCount = 0;
+        final selectedIndices = <int>[];
+        int selectedIndex = 0;
+        final controller = LiquidTabBarController();
+
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              return buildBar(
+                items: fourTabs,
+                selectedIndex: selectedIndex,
+                controller: controller,
+                onSelected: (i) {
+                  callbackCount++;
+                  selectedIndices.add(i);
+                  setState(() => selectedIndex = i);
+                },
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Tap Search (1)
+        await tester.tap(find.text('Search'), warnIfMissed: false);
+        await tester.pump(const Duration(milliseconds: 40));
+        expect(callbackCount, equals(0));
+
+        // Tap Orders (2) before Search settles
+        await tester.tap(find.text('Orders'), warnIfMissed: false);
+        await tester.pump(const Duration(milliseconds: 40));
+        expect(callbackCount, equals(0));
+
+        // Tap Profile (3) before Orders settles
+        await tester.tap(find.text('Profile'), warnIfMissed: false);
+        await tester.pump(const Duration(milliseconds: 40));
+        expect(callbackCount, equals(0));
+
+        // Let everything settle
+        await tester.pumpAndSettle();
+        expect(callbackCount, equals(1));
+        expect(selectedIndices, equals([3]));
+        expect(selectedIndex, equals(3));
+      },
+    );
+
+    testWidgets(
+      'holding destination tab for extended time maintains zero callbacks until release settle',
+      (tester) async {
+        int callbackCount = 0;
+        final selectedIndices = <int>[];
+        int selectedIndex = 0;
+        final controller = LiquidTabBarController();
+
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              return buildBar(
+                items: testItems,
+                selectedIndex: selectedIndex,
+                controller: controller,
+                onSelected: (i) {
+                  callbackCount++;
+                  selectedIndices.add(i);
+                  setState(() => selectedIndex = i);
+                },
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Pointer down on Orders and hold for 3 full seconds (30 * 100ms)
+        final gesture =
+            await tester.startGesture(tester.getCenter(find.text('Orders')));
+        for (int step = 0; step < 30; step++) {
+          await tester.pump(const Duration(milliseconds: 100));
+          expect(callbackCount, equals(0),
+              reason: 'Callback must not fire while held at step $step');
+        }
+
+        // Release finger
+        await gesture.up();
+        await tester.pump(const Duration(milliseconds: 10));
+        expect(callbackCount, equals(0));
+
+        await tester.pumpAndSettle();
+        expect(callbackCount, equals(1));
+        expect(selectedIndices, equals([1]));
+        expect(selectedIndex, equals(1));
+      },
+    );
+
+    testWidgets(
+      'programmatic selectedIndex change synchronizes lens without echoing onSelected callback',
+      (tester) async {
+        int callbackCount = 0;
+        final selectedIndices = <int>[];
+        int selectedIndex = 0;
+        final controller = LiquidTabBarController();
+
+        late void Function(void Function()) parentSetState;
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              parentSetState = setState;
+              return buildBar(
+                items: testItems,
+                selectedIndex: selectedIndex,
+                controller: controller,
+                onSelected: (i) {
+                  callbackCount++;
+                  selectedIndices.add(i);
+                },
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Programmatically change selection from 0 to 2
+        parentSetState(() {
+          selectedIndex = 2;
+        });
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        // Lens synchronizes visually, but onSelected is NOT echoed back
+        expect(callbackCount, equals(0));
+        expect(selectedIndices, isEmpty);
+      },
+    );
+
+    testWidgets(
+      'disposing LiquidTabBar during active scrub or travel does not trigger callbacks or leak',
+      (tester) async {
+        int callbackCount = 0;
+        final selectedIndices = <int>[];
+        bool mounted = true;
+        final controller = LiquidTabBarController();
+
+        late void Function(void Function()) parentSetState;
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              parentSetState = setState;
+              if (!mounted) return const SizedBox.shrink();
+              return buildBar(
+                items: testItems,
+                selectedIndex: 0,
+                controller: controller,
+                onSelected: (i) {
+                  callbackCount++;
+                  selectedIndices.add(i);
+                },
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Start gesture and scrub
+        final gesture =
+            await tester.startGesture(tester.getCenter(find.text('Home')));
+        await tester.pump(const Duration(milliseconds: 50));
+        await gesture.moveTo(tester.getCenter(find.text('Orders')));
+        await tester.pump(const Duration(milliseconds: 50));
+
+        // Unmount the tab bar in the middle of active scrub
+        parentSetState(() {
+          mounted = false;
+        });
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        // Release gesture after unmount
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        // Zero callbacks emitted
+        expect(callbackCount, equals(0));
+        expect(selectedIndices, isEmpty);
       },
     );
   });

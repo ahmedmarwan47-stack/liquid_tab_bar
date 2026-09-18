@@ -618,12 +618,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Press on the Calls slot (index 3), drag across it, then cancel mid-way.
-      final callsLabel = find.text('Calls');
-      final callsSlot = tester.getCenter(callsLabel);
-      final gesture = await tester.startGesture(callsSlot);
+      // Press on the Chats droplet (current tab 0), scrub across towards Calls, then cancel mid-way.
+      final chatsLabel = find.text('Chats');
+      final chatsSlot = tester.getCenter(chatsLabel);
+      final gesture = await tester.startGesture(chatsSlot);
       await tester.pump();
-      await gesture.moveBy(const Offset(-20, 10));
+      await gesture.moveBy(const Offset(40, 0));
       await tester.pump();
       await gesture.cancel();
       await tester.pumpAndSettle();
