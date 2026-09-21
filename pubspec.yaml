@@ -1,8 +1,8 @@
 name: liquid_tab_bar
 description: Two iOS 26-style floating liquid-glass tab bars for Flutter — a grabbable soap-bubble lens, or a droplet variant with search, actions and badges.
 version: 1.2.0
-repository: https://github.com/ahmedmarwan47-stack/orderbase_delivery_app/tree/main/packages/liquid_tab_bar
-issue_tracker: https://github.com/ahmedmarwan47-stack/orderbase_delivery_app/issues
+repository: https://github.com/ahmedmarwan47-stack/liquid_tab_bar
+issue_tracker: https://github.com/ahmedmarwan47-stack/liquid_tab_bar/issues
 topics:
   - navigation
   - tabs
