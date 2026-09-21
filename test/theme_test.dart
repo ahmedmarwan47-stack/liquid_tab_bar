@@ -532,7 +532,9 @@ void main() {
       expect(item.activeIcon, isNull);
     });
 
-    test('LiquidTabItem.custom iconBuilder applies theme color when useThemeColor is true', () {
+    test(
+        'LiquidTabItem.custom iconBuilder applies theme color when useThemeColor is true',
+        () {
       const customWidget = SizedBox(
         key: ValueKey('svg-mock'),
         width: 20,
@@ -562,7 +564,9 @@ void main() {
       expect(colorFiltered.child, customWidget);
     });
 
-    test('LiquidTabItem.custom iconBuilder preserves original colors when useThemeColor is false', () {
+    test(
+        'LiquidTabItem.custom iconBuilder preserves original colors when useThemeColor is false',
+        () {
       const customWidget = SizedBox(
         key: ValueKey('svg-multicolor'),
         width: 20,
@@ -585,7 +589,8 @@ void main() {
       expect(fittedBox.child, customWidget);
     });
 
-    test('LiquidTabItem.custom iconBuilder swaps to activeIcon when selected', () {
+    test('LiquidTabItem.custom iconBuilder swaps to activeIcon when selected',
+        () {
       const inactiveWidget = SizedBox(key: ValueKey('inactive'));
       const activeWidget = SizedBox(key: ValueKey('active'));
 
@@ -597,11 +602,13 @@ void main() {
       );
 
       final unselectedBuilt = item.iconBuilder(const Color(0xFF8E8E93), false);
-      final unselectedFitted = ((unselectedBuilt as SizedBox).child as Center).child as FittedBox;
+      final unselectedFitted =
+          ((unselectedBuilt as SizedBox).child as Center).child as FittedBox;
       expect(unselectedFitted.child, inactiveWidget);
 
       final selectedBuilt = item.iconBuilder(const Color(0xFF007AFF), true);
-      final selectedFitted = ((selectedBuilt as SizedBox).child as Center).child as FittedBox;
+      final selectedFitted =
+          ((selectedBuilt as SizedBox).child as Center).child as FittedBox;
       expect(selectedFitted.child, activeWidget);
     });
   });

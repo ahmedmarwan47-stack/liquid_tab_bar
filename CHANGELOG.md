@@ -1,3 +1,16 @@
+## 2.0.0 - Unreleased
+
+- Made the deformable droplet bar the sole public API and consolidated usage
+  under `package:liquid_tab_bar/liquid_tab_bar.dart`.
+- Restored bounded liquid swelling, travel deformation, current-droplet hit
+  testing, destination capture, redirectable travel, and deferred final
+  selection commits.
+- Added stale-selection protection so scrubbing and rapid retargeting produce
+  only one final `onSelected` callback.
+- Added custom SVG/widget icon examples and documented the current presets,
+  light/dark themes, material modes, and folded shapes.
+- Fixed the example SVG assets so the custom-icons demo renders correctly.
+
 ## 0.3.0 - Unreleased
 
 - Consolidated outer surfaces into `LiquidBarStyle`, droplet surfaces into

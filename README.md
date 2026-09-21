@@ -66,13 +66,25 @@ Add `liquid_tab_bar` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  liquid_tab_bar: ^0.3.0
+  liquid_tab_bar: ^2.0.0
 ```
 
 Fragment shaders are bundled with the package; no custom asset declarations are required in your host application.
 
 > [!NOTE]
 > `liquid_tab_bar` is dependency-free from external SVG or image packages. If you want to render SVG assets, add your preferred package (such as [`flutter_svg`](https://pub.dev/packages/flutter_svg)) to your host application's dependencies.
+
+For the SVG example below, add `flutter_svg` and declare the SVG directory in
+the host application's `pubspec.yaml`:
+
+```yaml
+dependencies:
+  flutter_svg: ^2.3.0
+
+flutter:
+  assets:
+    - assets/icons/
+```
 
 ---
 
@@ -146,6 +158,9 @@ const LiquidTabItem.icon(
 Use `LiquidTabItem.custom` to render custom widgets, such as vector icons via `flutter_svg`, raster artwork via `Image.asset`, or custom painters:
 
 ```dart
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:liquid_tab_bar/liquid_tab_bar.dart';
+
 LiquidTabItem.custom(
   label: 'Explore',
   icon: SvgPicture.asset(
@@ -280,7 +295,7 @@ LiquidTabBar(
       glass: GlassStyle.prismaticCaustics,
       blurTint: const Color(0x35FFFFFF),
     ),
-    dropletSurface: LiquidDropletSurfaceStyle.light.copyWith(
+    dropletSurfaceStyle: LiquidDropletSurfaceStyle.light.copyWith(
       borderWidth: 1.0,
     ),
   ),
@@ -299,6 +314,89 @@ LiquidTabBar(
 | **`blur`** | Cross-platform frosted glass with dual-pass backdrop filtering and rim highlights. |
 | **`opaque`** | High-contrast solid-fill capsule for accessibility or power saving. |
 
+### Presets
+
+#### Refraction presets
+
+```dart
+DropletRefractionStyle.none()
+DropletRefractionStyle.subtle()
+DropletRefractionStyle.medium() // default
+DropletRefractionStyle.strong()
+```
+
+Example:
+
+```dart
+theme: const LiquidTabBarTheme(
+  dropletRefraction: DropletRefractionStyle.strong(),
+),
+```
+
+#### Outer glass presets
+
+```dart
+GlassStyle.frosted
+GlassStyle.prismaticCaustics
+GlassStyle.clearCrystal
+GlassStyle.deepRefraction
+```
+
+Use an outer glass preset through `LiquidBarStyle`:
+
+```dart
+theme: LiquidTabBarTheme(
+  barStyle: LiquidBarStyle.light.copyWith(
+    glass: GlassStyle.prismaticCaustics,
+  ),
+),
+```
+
+#### Light and dark presets
+
+```dart
+LiquidTabBarTheme()
+LiquidTabBarTheme.dark()
+LiquidTabBarTheme.adaptive(context)
+
+LiquidBarStyle.light
+LiquidBarStyle.dark
+
+LiquidDropletSurfaceStyle.light
+LiquidDropletSurfaceStyle.dark
+
+LiquidTabActionStyle.light
+LiquidTabActionStyle.dark
+```
+
+The normal default is:
+
+```dart
+LiquidTabBarTheme()
+```
+
+For most applications, use the theme that follows the surrounding app theme:
+
+```dart
+theme: LiquidTabBarTheme.adaptive(context),
+```
+
+#### Material modes
+
+```dart
+LiquidTabBarMaterial.auto    // default
+LiquidTabBarMaterial.glass
+LiquidTabBarMaterial.blur
+LiquidTabBarMaterial.opaque
+```
+
+#### Folded shapes
+
+```dart
+LiquidFoldedShape.circle // default
+LiquidFoldedShape.oval
+```
+
 ### Glass & Droplet Surfaces
 
 Outer bar glass is configured via `GlassStyle`. Curated presets include:
@@ -316,7 +414,7 @@ barStyle: LiquidBarStyle.light.copyWith(
 The visible surface appearance of the moving droplet (gradient, border, shadow, and opaque fill) is configured via `LiquidDropletSurfaceStyle`:
 
 ```dart
-dropletSurface: LiquidDropletSurfaceStyle.light.copyWith(
+dropletSurfaceStyle: LiquidDropletSurfaceStyle.light.copyWith(
   borderWidth: 1.0,
 )
 ```

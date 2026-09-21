@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:liquid_tab_bar/liquid_tab_bar.dart';
-
 import 'examples/actions_example.dart';
 import 'examples/advanced_example.dart';
 import 'examples/basic_example.dart';

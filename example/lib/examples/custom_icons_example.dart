@@ -100,7 +100,9 @@ class _CustomIconsExampleState extends State<CustomIconsExample> {
       LiquidTabItem.custom(
         label: 'Profile',
         icon: SvgPicture.asset('assets/icons/profile_outline.svg'),
-        activeIcon: _hasActiveIcon ? SvgPicture.asset('assets/icons/profile_filled.svg') : null,
+        activeIcon: _hasActiveIcon
+            ? SvgPicture.asset('assets/icons/profile_filled.svg')
+            : null,
         useThemeColor: _useThemeColor,
       ),
 
@@ -286,12 +288,14 @@ class _CustomIconsExampleState extends State<CustomIconsExample> {
               runSpacing: 4,
               children: [
                 FilterChip(
-                  label: Text('Theme Tinting: ${_useThemeColor ? "ON" : "OFF"}'),
+                  label:
+                      Text('Theme Tinting: ${_useThemeColor ? "ON" : "OFF"}'),
                   selected: _useThemeColor,
                   onSelected: (val) => setState(() => _useThemeColor = val),
                 ),
                 FilterChip(
-                  label: Text('Custom Active Icon: ${_hasActiveIcon ? "ON" : "OFF"}'),
+                  label: Text(
+                      'Custom Active Icon: ${_hasActiveIcon ? "ON" : "OFF"}'),
                   selected: _hasActiveIcon,
                   onSelected: (val) => setState(() => _hasActiveIcon = val),
                 ),

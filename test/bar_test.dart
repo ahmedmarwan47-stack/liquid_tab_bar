@@ -4725,7 +4725,8 @@ void main() {
         expect(find.byIcon(Icons.search_rounded), findsOneWidget);
 
         // Tap to open search
-        await tester.tap(find.byIcon(Icons.search_rounded), warnIfMissed: false);
+        await tester.tap(find.byIcon(Icons.search_rounded),
+            warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 200));
         await tester.pumpAndSettle();
 
@@ -4751,7 +4752,8 @@ void main() {
                 items: testItems,
                 separateAction: LiquidTabAction.search(
                   icon: Icons.search_rounded,
-                  customIcon: const SizedBox(key: customKey, width: 20, height: 20),
+                  customIcon:
+                      const SizedBox(key: customKey, width: 20, height: 20),
                 ),
               ),
             ),
@@ -4777,7 +4779,8 @@ void main() {
                 material: LiquidTabBarMaterial.opaque,
                 items: testItems,
                 separateAction: LiquidTabAction.search(
-                  customIcon: const SizedBox(key: customKey, width: 20, height: 20),
+                  customIcon:
+                      const SizedBox(key: customKey, width: 20, height: 20),
                   useThemeColor: true,
                 ),
               ),
@@ -4788,7 +4791,8 @@ void main() {
 
         // In closed state: ColorFiltered wrapper is present around the custom icon
         expect(
-          find.ancestor(of: find.byKey(customKey), matching: find.byType(ColorFiltered)),
+          find.ancestor(
+              of: find.byKey(customKey), matching: find.byType(ColorFiltered)),
           findsOneWidget,
         );
 
@@ -4799,7 +4803,8 @@ void main() {
 
         // In expanded state: ColorFiltered wrapper is present with theme color
         expect(
-          find.ancestor(of: find.byKey(customKey), matching: find.byType(ColorFiltered)),
+          find.ancestor(
+              of: find.byKey(customKey), matching: find.byType(ColorFiltered)),
           findsOneWidget,
         );
 
@@ -4821,7 +4826,8 @@ void main() {
                 material: LiquidTabBarMaterial.opaque,
                 items: testItems,
                 separateAction: LiquidTabAction.search(
-                  customIcon: const SizedBox(key: customKey, width: 20, height: 20),
+                  customIcon:
+                      const SizedBox(key: customKey, width: 20, height: 20),
                   useThemeColor: false,
                 ),
               ),
@@ -4832,22 +4838,26 @@ void main() {
 
         // In closed state: NO ColorFiltered wrapper around custom widget
         expect(
-          find.ancestor(of: find.byKey(customKey), matching: find.byType(ColorFiltered)),
+          find.ancestor(
+              of: find.byKey(customKey), matching: find.byType(ColorFiltered)),
           findsNothing,
         );
 
         // Open search
         await tester.tap(find.byKey(customKey), warnIfMissed: false);
         await tester.pump(); // executes postFrameCallback to show overlay
-        await tester.pump(const Duration(milliseconds: 100)); // advances morph animation
+        await tester.pump(
+            const Duration(milliseconds: 100)); // advances morph animation
 
         // In opening/expanded state: NO ColorFiltered, but Opacity is applied for the fade transition
         expect(
-          find.ancestor(of: find.byKey(customKey), matching: find.byType(ColorFiltered)),
+          find.ancestor(
+              of: find.byKey(customKey), matching: find.byType(ColorFiltered)),
           findsNothing,
         );
         expect(
-          find.ancestor(of: find.byKey(customKey), matching: find.byType(Opacity)),
+          find.ancestor(
+              of: find.byKey(customKey), matching: find.byType(Opacity)),
           findsWidgets,
         );
 
@@ -4870,7 +4880,8 @@ void main() {
                 material: LiquidTabBarMaterial.opaque,
                 items: testItems,
                 separateAction: LiquidTabAction.search(
-                  customIcon: const SizedBox(key: customKey, width: 28, height: 28),
+                  customIcon:
+                      const SizedBox(key: customKey, width: 28, height: 28),
                   iconSize: 28.0,
                   size: 64.0,
                 ),
@@ -4882,7 +4893,10 @@ void main() {
 
         // 1. Enclosing glyph SizedBox has width 28, height 28
         final glyphSizedBox = tester.widget<SizedBox>(
-          find.ancestor(of: find.byKey(customKey), matching: find.byType(SizedBox)).first,
+          find
+              .ancestor(
+                  of: find.byKey(customKey), matching: find.byType(SizedBox))
+              .first,
         );
         expect(glyphSizedBox.width, equals(28.0));
         expect(glyphSizedBox.height, equals(28.0));
@@ -4921,7 +4935,8 @@ void main() {
                       ),
                       LiquidTabItem.custom(
                         label: 'Custom',
-                        icon: SizedBox(key: customTabKey, width: 20, height: 20),
+                        icon:
+                            SizedBox(key: customTabKey, width: 20, height: 20),
                       ),
                       LiquidTabItem.icon(
                         label: 'Settings',
@@ -4929,7 +4944,8 @@ void main() {
                       ),
                     ],
                     separateAction: LiquidTabAction.search(
-                      customIcon: const SizedBox(key: customSearchKey, width: 20, height: 20),
+                      customIcon: const SizedBox(
+                          key: customSearchKey, width: 20, height: 20),
                     ),
                   ),
                 ),

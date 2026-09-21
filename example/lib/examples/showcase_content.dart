@@ -47,8 +47,9 @@ class ShowcaseContent extends StatelessWidget {
         : ['Notes', 'Documents', 'Photos', 'Links'];
     final labels =
         itemLabels ?? showcaseItems(rtl: rtl).map((e) => e.label).toList();
-    final activeLabel =
-        (selected >= 0 && selected < labels.length) ? labels[selected] : 'Tab $selected';
+    final activeLabel = (selected >= 0 && selected < labels.length)
+        ? labels[selected]
+        : 'Tab $selected';
     return CustomScrollView(
       slivers: [
         SliverPadding(
