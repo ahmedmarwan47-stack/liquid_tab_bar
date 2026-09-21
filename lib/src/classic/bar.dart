@@ -641,9 +641,10 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     double clampWidth(double fullLw) {
       final pillSafeLw = LiquidTabBar._pillWidth - 2 * lensPad;
       final maxLwByBar = rect.width - 2 * lensPad;
-      final maxLwByCenter = 2 *
-          math.max(0.0, math.min(cx - lensPad, rect.width - cx - lensPad));
-      return ui.lerpDouble(fullLw, pillSafeLw, tt)!
+      final maxLwByCenter =
+          2 * math.max(0.0, math.min(cx - lensPad, rect.width - cx - lensPad));
+      return ui
+          .lerpDouble(fullLw, pillSafeLw, tt)!
           .clamp(0.0, math.max(0.0, math.min(maxLwByBar, maxLwByCenter)))
           .toDouble();
     }
