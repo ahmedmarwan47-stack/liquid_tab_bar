@@ -6,7 +6,8 @@ import 'package:liquid_tab_bar/liquid_tab_bar.dart';
 // Exercise the compiled shader with an image sampler, without requiring an
 // Impeller-only BackdropFilter in the headless test renderer.
 void main() {
-  testWidgets('dispersion is content-driven, bevel-local and motion-only',
+  testWidgets(
+      'dispersion stays in the bevel and leaves resting content untouched',
       (tester) async {
     await tester.runAsync(() async {
       final program = await ui.FragmentProgram.fromAsset(
@@ -32,22 +33,41 @@ void main() {
         final original = (await backdrop.toByteData())!.buffer.asUint8List();
         for (final config in [
           (
+            held: 0.0,
             motion: 0.35,
             dispersion: defaults.dispersion,
             strength: defaults.refractionStrength
           ),
           (
+            held: 0.0,
             motion: 1.0,
             dispersion: defaults.dispersion,
             strength: defaults.refractionStrength
           ),
           (
+            held: 0.0,
             motion: 0.0,
             dispersion: defaults.dispersion,
             strength: defaults.refractionStrength
           ),
-          (motion: 1.0, dispersion: 0.0, strength: defaults.refractionStrength),
-          (motion: 1.0, dispersion: defaults.dispersion, strength: 0.0),
+          (
+            held: 0.0,
+            motion: 1.0,
+            dispersion: 0.0,
+            strength: defaults.refractionStrength
+          ),
+          (
+            held: 0.0,
+            motion: 1.0,
+            dispersion: defaults.dispersion,
+            strength: 0.0
+          ),
+          (
+            held: 1.0,
+            motion: 0.0,
+            dispersion: defaults.dispersion,
+            strength: defaults.refractionStrength
+          ),
         ]) {
           final shader = program.fragmentShader();
           final uniforms = <double>[
@@ -71,6 +91,7 @@ void main() {
             0,
             config.motion,
             config.strength,
+            config.held,
           ];
           for (var i = 0; i < uniforms.length; i++) {
             shader.setFloat(i, uniforms[i]);
@@ -85,13 +106,20 @@ void main() {
           final result = await picture.toImage(width, height);
           final pixels = (await result.toByteData())!.buffer.asUint8List();
           var coloredPixels = 0;
-          final disabled = config.motion == 0 || config.strength == 0;
+          var illuminatedRimPixels = 0;
+          final disabled =
+              (config.motion == 0 && config.held == 0) || config.strength == 0;
           for (var y = 0; y < height; y++) {
             for (var x = 0; x < width; x++) {
               final i = (y * width + x) * 4;
               final spread = (pixels[i] - pixels[i + 1]).abs() +
                   (pixels[i + 1] - pixels[i + 2]).abs();
               if (spread > 3) coloredPixels++;
+              if (!striped &&
+                  config.motion > 0 &&
+                  pixels[i] > original[i] + 8) {
+                illuminatedRimPixels++;
+              }
               // Well inside the flat lens, or outside its bounds.
               final untouched = disabled ||
                   x < 38 ||
@@ -114,6 +142,10 @@ void main() {
                   ? greaterThan(20)
                   : equals(0),
               reason: 'Only sampled contrast may produce color: $config');
+          if (!striped && config.motion >= 1 && !disabled) {
+            expect(illuminatedRimPixels, greaterThan(30),
+                reason: 'The moving rim stays visible between icons.');
+          }
           result.dispose();
           picture.dispose();
           shader.dispose();

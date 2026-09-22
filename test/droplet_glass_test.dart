@@ -212,6 +212,8 @@ void main() {
         expect(dropletFinder, findsOneWidget);
         droplet = tester.widget<DropletGlassSurface>(dropletFinder);
         expect(droplet.motionStrength, greaterThan(0.5));
+        expect(droplet.heldStrength, greaterThan(0),
+            reason: 'The reflective rim continues while the droplet travels.');
 
         // Settle on Library
         await tester.pumpAndSettle();
@@ -221,6 +223,7 @@ void main() {
         expect(dropletFinder, findsOneWidget);
         droplet = tester.widget<DropletGlassSurface>(dropletFinder);
         expect(droplet.motionStrength, 0.0);
+        expect(droplet.heldStrength, 0.0);
 
         // Wait several seconds: verify zero residual optical displacement
         await tester.pump(const Duration(seconds: 3));

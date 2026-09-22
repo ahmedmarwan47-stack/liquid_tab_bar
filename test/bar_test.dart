@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_tab_bar/liquid_tab_bar.dart';
 import 'package:liquid_tab_bar/src/glass.dart';
+import 'package:liquid_tab_bar/src/surface_press.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -3330,7 +3331,7 @@ void main() {
         // - Top rises moderately above the bar (topY ≈ -6.0pt, in target range -5 to -8pt)
         // - Bottom bulges moderately below the bar (bottomY ≈ 67.0pt, in target range 66 to 69pt)
         // - Height swells to ≈ 73.0pt (+30.3% compact liquid swelling)
-        // - Width swells conservatively (+5% at zero velocity)
+        // - Width also grows enough to keep the held droplet a horizontal capsule.
         final pressed = findDropletOuterPositioned(tester);
         expect(pressed.height!, greaterThanOrEqualTo(71.0));
         expect(pressed.height!, lessThanOrEqualTo(76.0));
@@ -3343,8 +3344,7 @@ void main() {
         expect(pressed.top! + pressed.height!, lessThanOrEqualTo(69.0));
         expect(pressed.width!,
             greaterThan(resting.width! * 1.03)); // Width expansion
-        expect(pressed.width!,
-            lessThan(resting.width! * 1.10)); // Conservative width
+        expect(pressed.width! / pressed.height!, closeTo(1.42, 0.02));
 
         // 3. Active horizontal drag: stretches width with velocity while preserving liquid silhouette
         await gesture.moveBy(const Offset(40, 0));
@@ -3366,6 +3366,33 @@ void main() {
         expect(settled.top! + settled.height!, equals(60.0));
       },
     );
+
+    testWidgets('narrow five-tab hold stays rounded and cancels cleanly',
+        (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(buildBar(items: [
+        ...testItems,
+        const LiquidTabItem.icon(label: 'Chat', icon: Icons.chat),
+        const LiquidTabItem.icon(label: 'Settings', icon: Icons.settings),
+      ], selectedIndex: 1, controller: LiquidTabBarController()));
+      await tester.pumpAndSettle();
+      final resting = findDropletOuterPositioned(tester);
+      final labelCenter = tester.getCenter(find.text('Orders'));
+      final gesture = await tester.startGesture(labelCenter);
+      await tester.pumpAndSettle();
+      final held = findDropletOuterPositioned(tester);
+      expect(held.width! / held.height!, closeTo(1.42, 0.01));
+      expect(tester.getCenter(find.text('Orders')), labelCenter);
+      await gesture.cancel();
+      await tester.pumpAndSettle();
+      final released = findDropletOuterPositioned(tester);
+      expect(released.width, resting.width);
+      expect(released.height, resting.height);
+      expect(tester.takeException(), isNull);
+    });
 
     testWidgets(
       'folded navigation geometry safeguards prevent protrusion when bar is minimized',
@@ -3772,9 +3799,30 @@ void main() {
         expect(pressed.top!, lessThanOrEqualTo(-5.0));
         expect(pressed.height!, greaterThanOrEqualTo(71.0));
 
+        // The surface grows and keeps a continuous curved outline while held.
+        final heldSurface = find.byWidgetPredicate((w) =>
+            w is DecoratedBox &&
+            w.decoration is ShapeDecoration &&
+            (w.decoration as ShapeDecoration).shape is PressedSurfaceBorder);
+        final surface = tester.widget<DecoratedBox>(heldSurface);
+        final shape = (surface.decoration as ShapeDecoration).shape
+            as PressedSurfaceBorder;
+        final surfaceSize = tester.getSize(heldSurface);
+        final path = shape.getOuterPath(Offset.zero & surfaceSize);
+        expect(surfaceSize.height, greaterThan(LiquidTabBar.barHeight));
+        expect(path.contains(const Offset(1, 1)), isFalse);
+        expect(path.contains(Offset(surfaceSize.width - 1, 1)), isFalse);
+        final centerX = shape.press.center;
+        expect(path.contains(Offset(centerX, 1)), isFalse);
+        expect(path.contains(Offset(centerX, surfaceSize.height - 1)), isFalse);
+        expect(path.contains(Offset(centerX, surfaceSize.height / 2)), isTrue);
+        expect(path.contains(Offset(surfaceSize.width / 2, 1)), isTrue);
+
         // Release finger without dragging
         await gesture.up();
         await tester.pumpAndSettle();
+
+        expect(heldSurface, findsNothing);
 
         // Settles back to resting geometry
         final settled = findDropletOuterPositioned(tester);

@@ -4,6 +4,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import 'test_overrides.dart';
+import 'surface_press.dart';
 
 /// The glass shader — loaded once at startup, gated at runtime.
 ///
@@ -503,12 +504,14 @@ class GlassSurface extends StatefulWidget {
     required this.radius,
     required this.pad,
     required this.style,
+    this.press = const SurfacePress(),
   });
 
   final Size size;
   final double radius;
   final double pad;
   final GlassStyle style;
+  final SurfacePress press;
 
   @override
   State<GlassSurface> createState() => _GlassSurfaceState();
@@ -546,6 +549,7 @@ class _GlassSurfaceState extends State<GlassSurface> {
         child: _GlassFilter(
           shader: _shader,
           style: widget.style,
+          press: widget.press,
           radius: widget.radius,
           pad: widget.pad,
           dpr: MediaQuery.devicePixelRatioOf(context),
@@ -563,22 +567,25 @@ class _GlassFilter extends SingleChildRenderObjectWidget {
     required this.radius,
     required this.pad,
     required this.dpr,
+    required this.press,
     super.child,
   });
 
   final ui.FragmentShader shader;
   final GlassStyle style;
+  final SurfacePress press;
   final double radius;
   final double pad;
   final double dpr;
 
   @override
   RenderObject createRenderObject(BuildContext context) =>
-      _RenderGlassFilter(shader, style, radius, pad, dpr);
+      _RenderGlassFilter(shader, style, radius, pad, dpr, press);
 
   @override
   void updateRenderObject(BuildContext context, _RenderGlassFilter r) {
     r
+      ..press = press
       ..style = style
       ..radius = radius
       ..pad = pad
@@ -595,9 +602,17 @@ class _RenderGlassFilter extends RenderProxyBox {
     this._radius,
     this._pad,
     this._dpr,
+    this._press,
   );
 
   final ui.FragmentShader _shader;
+
+  SurfacePress _press;
+  set press(SurfacePress value) {
+    if (value == _press) return;
+    _press = value;
+    markNeedsPaint();
+  }
 
   GlassStyle _style;
   set style(GlassStyle v) {
@@ -666,7 +681,11 @@ class _RenderGlassFilter extends RenderProxyBox {
       ..setFloat(21, s.shadow)
       ..setFloat(22, s.shadowBlur * d)
       ..setFloat(23, s.shadowOffset.dx * d)
-      ..setFloat(24, s.shadowOffset.dy * d);
+      ..setFloat(24, s.shadowOffset.dy * d)
+      ..setFloat(25, (origin.dx + _pad + _press.center) * d)
+      ..setFloat(26, _press.reach * d)
+      ..setFloat(27, _press.depth * d)
+      ..setFloat(28, _press.amount);
     // ImageFilter snapshots the shader uniforms when its native filter is
     // created. Recreate it after updating uniforms so geometry stays current.
     return ui.ImageFilter.shader(_shader);
@@ -709,6 +728,7 @@ class DropletGlassSurface extends StatefulWidget {
     required this.style,
     this.refractionStyle,
     this.motionStrength = 1.0,
+    this.heldStrength = 0.0,
   });
 
   final Size size;
@@ -716,6 +736,7 @@ class DropletGlassSurface extends StatefulWidget {
   final GlassStyle style;
   final DropletRefractionStyle? refractionStyle;
   final double motionStrength;
+  final double heldStrength;
 
   @override
   State<DropletGlassSurface> createState() => _DropletGlassSurfaceState();
@@ -764,6 +785,7 @@ class _DropletGlassSurfaceState extends State<DropletGlassSurface> {
           refractionStyle: _effectiveRefraction,
           radius: widget.radius,
           motionStrength: widget.motionStrength,
+          heldStrength: widget.heldStrength,
           dpr: MediaQuery.devicePixelRatioOf(context),
           child: const SizedBox.expand(),
         ),
@@ -780,6 +802,7 @@ class _DropletGlassFilter extends SingleChildRenderObjectWidget {
     required this.radius,
     required this.dpr,
     this.motionStrength = 1.0,
+    this.heldStrength = 0.0,
     super.child,
   });
 
@@ -789,6 +812,7 @@ class _DropletGlassFilter extends SingleChildRenderObjectWidget {
   final double radius;
   final double dpr;
   final double motionStrength;
+  final double heldStrength;
 
   @override
   RenderObject createRenderObject(BuildContext context) =>
@@ -799,6 +823,7 @@ class _DropletGlassFilter extends SingleChildRenderObjectWidget {
         radius,
         dpr,
         motionStrength,
+        heldStrength,
       );
 
   @override
@@ -808,7 +833,8 @@ class _DropletGlassFilter extends SingleChildRenderObjectWidget {
       ..refractionStyle = refractionStyle
       ..radius = radius
       ..dpr = dpr
-      ..motionStrength = motionStrength;
+      ..motionStrength = motionStrength
+      ..heldStrength = heldStrength;
   }
 }
 
@@ -820,6 +846,7 @@ class _RenderDropletGlassFilter extends RenderProxyBox {
     this._radius,
     this._dpr,
     this._motionStrength,
+    this._heldStrength,
   );
 
   final ui.FragmentShader _shader;
@@ -849,6 +876,13 @@ class _RenderDropletGlassFilter extends RenderProxyBox {
   set dpr(double v) {
     if (v == _dpr) return;
     _dpr = v;
+    markNeedsPaint();
+  }
+
+  double _heldStrength;
+  set heldStrength(double value) {
+    if (value == _heldStrength) return;
+    _heldStrength = value;
     markNeedsPaint();
   }
 
@@ -890,6 +924,7 @@ class _RenderDropletGlassFilter extends RenderProxyBox {
     // 14-17: uTint (r, g, b, a)
     // 18:    uMotionStrength
     // 19:    uRefractionStrength
+    // 20:    uHeldStrength
     _shader
       ..setFloat(2, origin.dx * d)
       ..setFloat(3, origin.dy * d)
@@ -908,7 +943,8 @@ class _RenderDropletGlassFilter extends RenderProxyBox {
       ..setFloat(16, s.tint.b)
       ..setFloat(17, s.tint.a)
       ..setFloat(18, _motionStrength)
-      ..setFloat(19, r.refractionStrength);
+      ..setFloat(19, r.refractionStrength)
+      ..setFloat(20, _heldStrength);
     return ui.ImageFilter.shader(_shader);
   }
 }
@@ -927,8 +963,10 @@ class GlassLightPainter extends CustomPainter {
     required this.style,
     required this.radius,
     this.isDark = false,
+    this.press = const SurfacePress(),
   });
 
+  final SurfacePress press;
   final GlassStyle style;
   final double radius;
 
@@ -944,6 +982,14 @@ class GlassLightPainter extends CustomPainter {
   final Paint _threadCoolPaint = Paint()
     ..style = PaintingStyle.stroke
     ..strokeWidth = 1;
+
+  void _drawOutline(Canvas canvas, RRect outline, Paint paint) {
+    if (press.depth <= 0) {
+      canvas.drawRRect(outline, paint);
+    } else {
+      canvas.drawPath(press.contour(outline.outerRect), paint);
+    }
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -975,7 +1021,8 @@ class GlassLightPainter extends CustomPainter {
         ],
         stops: const [0.0, 0.45],
       ).createShader(rect);
-    canvas.drawRRect(
+    _drawOutline(
+      canvas,
       RRect.fromRectAndRadius(rect.deflate(rimWidth / 2), r),
       _bandPaint,
     );
@@ -998,7 +1045,8 @@ class GlassLightPainter extends CustomPainter {
       ],
       stops: const [0.0, 0.3, 0.6, 1.0],
     ).createShader(rect);
-    canvas.drawRRect(RRect.fromRectAndRadius(rect.deflate(0.5), r), _linePaint);
+    _drawOutline(
+        canvas, RRect.fromRectAndRadius(rect.deflate(0.5), r), _linePaint);
 
     // Dispersing — a finger dragging the lens — the hairline splits into a
     // warm thread on the edge and a cool one just inside it: this tier's
@@ -1019,7 +1067,8 @@ class GlassLightPainter extends CustomPainter {
         ],
         stops: const [0.0, 0.55],
       ).createShader(rect);
-      canvas.drawRRect(
+      _drawOutline(
+        canvas,
         RRect.fromRectAndRadius(rect.deflate(0.5), r),
         _threadWarmPaint,
       );
@@ -1033,7 +1082,8 @@ class GlassLightPainter extends CustomPainter {
         ],
         stops: const [0.0, 0.55],
       ).createShader(rect);
-      canvas.drawRRect(
+      _drawOutline(
+        canvas,
         RRect.fromRectAndRadius(
           rect.deflate(inset),
           Radius.circular(radius - inset),
@@ -1045,7 +1095,10 @@ class GlassLightPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(GlassLightPainter old) =>
-      old.style != style || old.radius != radius || old.isDark != isDark;
+      old.style != style ||
+      old.radius != radius ||
+      old.isDark != isDark ||
+      old.press != press;
 }
 
 /// Reuses the neutral rim shader while the droplet geometry is unchanged.

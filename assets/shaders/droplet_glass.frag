@@ -18,6 +18,7 @@
 // 14-17: uTint            straight-alpha glass tint
 // 18:    uMotionStrength  motion-driven refraction factor (0.0 = rest, 1.0 = full motion)
 // 19:    uRefractionStrength master multiplier for optical refraction displacement
+// 20:    uHeldStrength     stationary hold, restricted to the outer glass rim
 
 uniform vec2 uSize;
 uniform vec4 uRect;
@@ -31,6 +32,7 @@ uniform vec2 uLight;
 uniform vec4 uTint;
 uniform float uMotionStrength;
 uniform float uRefractionStrength;
+uniform float uHeldStrength;
 
 uniform sampler2D uTex;
 
@@ -54,16 +56,12 @@ void main() {
   float r = min(uRadius, min(hs.x, hs.y));
   float sd = sdBox(q, hs, r);
 
-  // Motion-only refraction:
-  // When resting on the selected tab (motionFactor <= 0.0005) or refraction is disabled (refrStrength <= 0.0005):
-  // Return the backdrop untouched!
-  // This guarantees that at rest (or when refractionStrength == 0.0), the droplet's appearance
-  // is 100% defined by the authentic droplet design: _lensSurface (gradient, border, shadow) and
-  // LiquidDropletHighlightPainter (specular hairline), with ZERO extra tint,
-  // ZERO extra specular highlights, and ZERO distortion.
+  // Rest is optically neutral. Holding adds a thin curved rim while keeping
+  // the center and selected content still; travel retains its existing lensing.
   float motionFactor = clamp(uMotionStrength, 0.0, 1.0);
   float refrStrength = max(uRefractionStrength, 0.0);
-  if (motionFactor <= 0.0005 || refrStrength <= 0.0005) {
+  float heldFactor = clamp(uHeldStrength, 0.0, 1.0);
+  if ((motionFactor <= 0.0005 && heldFactor <= 0.0005) || refrStrength <= 0.0005) {
     fragColor = tap(p);
     return;
   }
@@ -110,7 +108,11 @@ void main() {
   // This guarantees a completely calm, stable, legible center!
   // Edge: strong inward displacement proportional to optical depth.
   float optDepth = height + uBaseHeight;
-  vec2 disp = refracted.xy * (optDepth / max(abs(refracted.z), 0.2)) * (motionFactor * refrStrength);
+  // Hold is deliberately stronger than travel at the extreme bevel. It still
+  // starts outside the flat center so the selected icon and label stay crisp.
+  float heldRim = heldFactor * smoothstep(0.64, 1.0, n_cos) * 0.52;
+  float opticalStrength = max(motionFactor, heldRim);
+  vec2 disp = refracted.xy * (optDepth / max(abs(refracted.z), 0.2)) * (opticalStrength * refrStrength);
 
   // Separate wavelengths only along the curved bevel. Color comes from
   // contrast in the backdrop (icons/labels), not a painted spectral border.
@@ -134,8 +136,12 @@ void main() {
   // refracted glyphs and washing out their spectral edges.
   float facing = max(dot(boundaryNormal, normalize(uLight + vec2(0.0001))), 0.0);
   float edgeSheen = pow(n_cos, 5.0) * (0.25 + 0.75 * facing)
-      * motionFactor * max(uSpecular, 0.0);
-  vec3 col = bgCol.rgb + vec3(edgeSheen);
+      * max(motionFactor, heldFactor * 0.82) * max(uSpecular, 0.0);
+  // Backdrop refraction disappears against the flat space between tabs. A
+  // thin moving reflection keeps the glass edge visible throughout travel.
+  float travelRim = motionFactor * smoothstep(0.72, 1.0, n_cos)
+      * (0.075 + 0.22 * max(uSpecular, 0.0));
+  vec3 col = bgCol.rgb + vec3(edgeSheen + travelRim);
 
   // Antialiasing: smooth transition from refracted interior to unaffected exterior
   float aa = 1.0 - smoothstep(0.0, 1.5, sd);

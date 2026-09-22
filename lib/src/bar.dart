@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'controller.dart';
 import 'glass.dart';
 import 'scroll_padding.dart';
+import 'surface_press.dart';
 import 'theme.dart';
 
 const _defaultBadgeColor = Color(0xFFE72B29);
@@ -455,6 +456,8 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     vsync: this,
     value: 0,
   );
+  double get _liquidLift =>
+      math.max(_pressAnim.value, _travelAnim.value).clamp(0.0, 1.0);
   bool _isTraveling = false;
 
   void _startTravelBulge([double? targetV]) {
@@ -1195,9 +1198,17 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     final rect = (g.searchCollapsedTabRect != null && s > 0)
         ? Rect.lerp(baseRect, g.searchCollapsedTabRect!, s)!
         : baseRect;
-    final radius = rect.height / 2;
     final pad =
         material == LiquidTabBarMaterial.glass ? LiquidTabBar._glassPad : 0.0;
+
+    final heldSurfaceProgress =
+        widget.selectedIndex == null ? 0.0 : _liquidLift * (1 - tt) * (1 - s);
+    // Lay out the glass at its painted size so shader coordinates stay accurate.
+    final surfaceRect = Rect.fromCenter(
+      center: rect.center,
+      width: rect.width * (1 + 0.012 * heldSurfaceProgress),
+      height: rect.height * (1 + 0.035 * heldSurfaceProgress),
+    );
 
     final action = _effectiveAction;
     final effectiveSearchRect =
@@ -1227,15 +1238,19 @@ class _LiquidTabBarState extends State<LiquidTabBar>
             if (_n > 0) ...[
               // The surface and its shadow — free to paint past the box.
               Positioned(
-                left: rect.left - pad,
-                top: rect.top - pad,
-                width: rect.width + 2 * pad,
-                height: rect.height + 2 * pad,
+                left: surfaceRect.left - pad,
+                top: surfaceRect.top - pad,
+                width: surfaceRect.width + 2 * pad,
+                height: surfaceRect.height + 2 * pad,
                 child: IgnorePointer(
-                  child: _surface(
+                  child: _heldSurface(
+                    g,
+                    rect,
+                    t,
+                    s,
                     material,
-                    rect.size,
-                    radius,
+                    surfaceRect.size,
+                    surfaceRect.height / 2,
                     pad,
                     th,
                     foldProgress: tt,
@@ -1370,6 +1385,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     double pad,
     LiquidTabBarTheme th, {
     double foldProgress = 0.0,
+    SurfacePress press = const SurfacePress(),
   }) {
     final r = BorderRadius.circular(radius);
     final fp = foldProgress.clamp(0.0, 1.0);
@@ -1423,6 +1439,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
             pad,
             th,
             foldProgress: foldProgress,
+            press: press,
           );
         }
         return GlassSurface(
@@ -1430,6 +1447,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
           radius: radius,
           pad: pad,
           style: effectiveStyle,
+          press: press,
         );
       case LiquidTabBarMaterial.blur:
       case LiquidTabBarMaterial.auto:
@@ -1462,6 +1480,49 @@ class _LiquidTabBarState extends State<LiquidTabBar>
               offset: Offset(0, contactShadowDy * fp),
             ),
         ];
+
+        if (press.amount > 0) {
+          final shape = PressedSurfaceBorder(press);
+          return DecoratedBox(
+            decoration: ShapeDecoration(shape: shape, shadows: effectiveShadow),
+            child: ClipPath(
+              clipper: ShapeBorderClipper(shape: shape),
+              child: BackdropFilter(
+                filter: _frostFilter(effectiveStyle),
+                child: DecoratedBox(
+                  decoration: ShapeDecoration(
+                    shape: shape,
+                    color: Color.alphaBlend(
+                        Colors.white.withValues(alpha: 0.07 * press.amount),
+                        effectiveTint),
+                  ),
+                  child: DecoratedBox(
+                    decoration: ShapeDecoration(
+                      shape: PressedSurfaceBorder(press,
+                          side: BorderSide(color: effectiveEdge)),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          th.barStyle.blurSheenTop,
+                          th.barStyle.blurSheenBottom
+                        ],
+                      ),
+                    ),
+                    child: CustomPaint(
+                      painter: GlassLightPainter(
+                          style: effectiveStyle,
+                          radius: radius,
+                          isDark: isDark,
+                          press: press),
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
 
         return DecoratedBox(
           decoration: BoxDecoration(
@@ -1504,6 +1565,17 @@ class _LiquidTabBarState extends State<LiquidTabBar>
           ),
         );
       case LiquidTabBarMaterial.opaque:
+        if (press.amount > 0) {
+          return DecoratedBox(
+            decoration: ShapeDecoration(
+              color: th.barStyle.opaqueFill,
+              shape: PressedSurfaceBorder(press,
+                  side: BorderSide(color: th.barStyle.opaqueEdge)),
+              shadows: th.barStyle.shadow,
+            ),
+            child: const SizedBox.expand(),
+          );
+        }
         return DecoratedBox(
           decoration: BoxDecoration(
             color: th.barStyle.opaqueFill,
@@ -1514,6 +1586,37 @@ class _LiquidTabBarState extends State<LiquidTabBar>
           child: const SizedBox.expand(),
         );
     }
+  }
+
+  Widget _heldSurface(
+    _Geometry g,
+    Rect rect,
+    double t,
+    double s,
+    LiquidTabBarMaterial material,
+    Size size,
+    double radius,
+    double pad,
+    LiquidTabBarTheme theme, {
+    required double foldProgress,
+  }) {
+    final held =
+        widget.selectedIndex == null ? 0.0 : _liquidLift * (1 - t) * (1 - s);
+    final droplet = _dropletRect(g, rect, t);
+    return _surface(
+      material,
+      size,
+      radius,
+      pad,
+      theme,
+      foldProgress: foldProgress,
+      press: SurfacePress(
+        center: droplet.center.dx + (size.width - rect.width) / 2,
+        reach: math.max(droplet.width * 0.8, 1),
+        depth: 2.0 * held,
+        amount: held,
+      ),
+    );
   }
 
   /// Saturation matrix about the Rec. 709 luminance axis.
@@ -1606,17 +1709,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     if (activeV != null && lensFade > 0) {
       final v = _lens.value;
       final speed = _lensVelocity.abs();
-      // Subtle directional stretch reacting gently to velocity (+15% to +20% max):
-      final stretch = (speed * 0.030).clamp(0.0, 0.15);
-
-      // Liquid deformation architecture:
-      // 1. interactionBulge: finger-driven press/hold state (via _pressAnim)
-      // 2. travelBulge: selected-tab movement state (via _travelAnim)
-      // 3. Combined safely via math.max to guarantee deformation never doubles or stacks
-      final interactionBulge = _pressAnim.value.clamp(0.0, 1.15);
-      final travelBulge = _travelAnim.value.clamp(0.0, 1.15);
-      final rawBulge = math.max(interactionBulge, travelBulge);
-      final effectiveBulge = rawBulge * (1.0 - tt) * (1.0 - s);
+      final held = _liquidLift * (1 - tt) * (1 - s);
       final distFromSlot = (v - v.round()).abs();
       final scrubBetween =
           _scrubbing ? (distFromSlot * 2.0).clamp(0.0, 1.0) : 0.0;
@@ -1624,7 +1717,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
         scrubBetween * 0.85,
         (speed / (LiquidTabBar._highlightFullSpeed * 0.5)).clamp(0.0, 1.0),
       );
-      lensMotion = motion;
+      lensMotion = math.max(motion, held * 0.85);
 
       // Optical content refraction is strictly MOTION-ONLY:
       // When resting on the selected tab (speed ~ 0 and distToTarget ~ 0),
@@ -1648,37 +1741,14 @@ class _LiquidTabBarState extends State<LiquidTabBar>
       final style = isDark ? _darkDropletGlass : _lightDropletGlass;
       lensStyle = style;
 
-      final restingTop = LiquidTabBar._lensInset;
-      final restingBottom = LiquidTabBar.barHeight - LiquidTabBar._lensInset;
-      // Controlled, authentic Apple Liquid Glass bulge:
-      // - At rest: top = 4.0pt, bottom = 60.0pt, height = 56.0pt
-      // - Peak held / travel bulge:
-      //   top protrusion: ~6.0pt above the bar (topY ≈ -6.0pt, in target range 5–8pt)
-      //   bottom protrusion: ~3.0pt below the bar (bottomY ≈ 67.0pt, in target range 2–5pt)
-      //   height: ~73.0pt (+30.3% vertical liquid swelling, compact and clearly noticeable)
-      //   width: +5% at zero velocity (restingW * 1.05, in target range 4–7%)
-      //   max velocity stretch: +20.75% max horizontal expansion under travel/drag
-      final deltaTop = 10.0 * effectiveBulge;
-      final deltaBottom = 7.0 * effectiveBulge;
-
-      // Velocity squash-and-stretch: horizontal velocity gently stretches width while
-      // slightly relaxing vertical protrusion to preserve liquid mass under surface tension:
-      final topY = restingTop - deltaTop * (1.0 - stretch * 0.12);
-      final bottomY = restingBottom + deltaBottom * (1.0 - stretch * 0.10);
-      final lh = bottomY - topY;
-
-      // Width swells conservatively (+5% at zero velocity) with subtle drag/travel stretch:
-      final restingW = (g.slotW + LiquidTabBar._lensOverhang);
-      final lw = restingW * (1.0 + stretch) * (1.0 + 0.05 * effectiveBulge);
+      final droplet = _dropletRect(g, rect, t);
+      final lw = droplet.width;
+      final lh = droplet.height;
+      final cx = droplet.center.dx;
+      final cy = droplet.center.dy;
       lensW = lw;
       lensH = lh;
-
-      // Subtle directional inertia: droplet shifts gently along movement direction:
-      final inertiaLean = (_lensVelocity * 0.8).clamp(-1.5, 1.5) * (1.0 - tt);
-      final normalCx = g.slotCenterX(v) - rect.left + shift + inertiaLean;
-      final cx = ui.lerpDouble(normalCx, rect.width / 2, s)!;
       lensCxLocal = cx;
-      final cy = (topY + bottomY) / 2.0 - rect.top;
       lensCy = cy;
       final lensPad = m == LiquidTabBarMaterial.glass ? 6.0 : 0.0;
       children.add(
@@ -1696,6 +1766,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
             motion,
             _lensVelocity,
             th,
+            held: held,
           ),
         ),
       );
@@ -1955,6 +2026,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
               style: lensStyle,
               refractionStyle: effectiveRefraction,
               motionStrength: dropletMotionStrength,
+              heldStrength: _liquidLift * (1 - tt) * (1 - s),
             ),
           ),
         ),
@@ -2002,8 +2074,9 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     double fade,
     double motion,
     double velocity,
-    LiquidTabBarTheme th,
-  ) {
+    LiquidTabBarTheme th, {
+    double held = 0,
+  }) {
     final r = BorderRadius.circular(size.height / 2);
     final surface = th.dropletSurfaceStyle;
 
@@ -2018,6 +2091,8 @@ class _LiquidTabBarState extends State<LiquidTabBar>
         borderRadius: r,
       );
     } else {
+      // The lifted lens is clearer, with its silhouette carried by the rim.
+      final fillFade = fade * (1 - 0.55 * held);
       decoration = BoxDecoration(
         borderRadius: r,
         boxShadow: [
@@ -2033,9 +2108,10 @@ class _LiquidTabBarState extends State<LiquidTabBar>
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            surface.gradientTop.withValues(alpha: surface.gradientTop.a * fade),
+            surface.gradientTop
+                .withValues(alpha: surface.gradientTop.a * fillFade),
             surface.gradientBottom.withValues(
-              alpha: surface.gradientBottom.a * fade,
+              alpha: surface.gradientBottom.a * fillFade,
             ),
           ],
         ),
@@ -2063,7 +2139,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
   }
 
   /// Current visual rectangle occupied by the liquid droplet in capsule coordinates.
-  Rect _currentDropletRect(_Geometry g, Rect rect, double t) {
+  Rect _dropletRect(_Geometry g, Rect rect, double t) {
     final tt = t.clamp(0.0, 1.0);
     final s = _searchAnim.value.clamp(0.0, 1.0);
     final inner = _innerIndexFromOriginal(widget.selectedIndex);
@@ -2085,13 +2161,24 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     final bottomY = restingBottom + deltaBottom * (1.0 - stretch * 0.10);
     final lh = bottomY - topY;
     final restingW = (g.slotW + LiquidTabBar._lensOverhang);
-    final lw = restingW * (1.0 + stretch) * (1.0 + 0.05 * effectiveBulge);
+    final baseWidth = restingW * (1.0 + 0.05 * effectiveBulge);
+    // Preserve a horizontal capsule in narrow four/five-tab layouts.
+    final held = _liquidLift * (1 - tt) * (1 - s);
+    final lw = ui.lerpDouble(baseWidth, math.max(baseWidth, lh * 1.42), held)! *
+        (1.0 + stretch);
     final inertiaLean = (_lensVelocity * 0.8).clamp(-1.5, 1.5) * (1.0 - tt);
     final normalCx = g.slotCenterX(v) - rect.left + shift + inertiaLean;
     final cx = ui.lerpDouble(normalCx, rect.width / 2, s)!;
     final cy = (topY + bottomY) / 2.0 - rect.top;
-    final hitW = math.min(lw, g.slotW - 12.0);
-    return Rect.fromCenter(center: Offset(cx, cy), width: hitW, height: lh);
+    return Rect.fromCenter(center: Offset(cx, cy), width: lw, height: lh);
+  }
+
+  Rect _currentDropletRect(_Geometry g, Rect rect, double t) {
+    final droplet = _dropletRect(g, rect, t);
+    return Rect.fromCenter(
+        center: droplet.center,
+        width: math.min(droplet.width, g.slotW - 12.0),
+        height: droplet.height);
   }
 
   /// Identifies whether [localPosition] lands on a valid destination tab item

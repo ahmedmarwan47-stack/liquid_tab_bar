@@ -13,20 +13,18 @@ Current release: `2.0.0`
 
 <table>
   <tr>
-    <th width="50%">Fluid Droplet Navigation</th>
-    <th width="50%">Custom Glass & Refraction</th>
+    <th width="50%">Press & Hold — Dark</th>
+    <th width="50%">Press & Hold — Light</th>
   </tr>
   <tr>
-    <td><img src="doc/images/basic.png" alt="Fluid Droplet Navigation" width="100%" /></td>
-    <td><img src="doc/images/styling.png" alt="Custom Glass Styling" width="100%" /></td>
+    <td><img src="doc/images/held_dark.png" alt="Held liquid glass droplet in dark mode" width="100%" /></td>
+    <td><img src="doc/images/held_light.png" alt="Held liquid glass droplet in light mode" width="100%" /></td>
   </tr>
   <tr>
-    <th width="50%">Expandable Search Morph</th>
-    <th width="50%">Badges & Optical Sampling</th>
+    <th colspan="2">Basic Navigation</th>
   </tr>
   <tr>
-    <td><img src="doc/images/search.png" alt="Expandable Search Morph" width="100%" /></td>
-    <td><img src="doc/images/badges.png" alt="Badges & Optical Sampling" width="100%" /></td>
+    <td colspan="2"><img src="doc/images/basic.png" alt="Basic liquid tab bar" width="100%" /></td>
   </tr>
 </table>
 
@@ -34,7 +32,7 @@ Current release: `2.0.0`
 
 ## Features
 
-- **Fluid Droplet Navigation**: Selection lens driven by analytical spring physics with velocity stretch during interactive scrubbing.
+- **Fluid Droplet Navigation**: Selection lens driven by analytical spring physics with velocity stretch during interactive scrubbing. Pressing or moving the droplet widens its glass capsule and gives the surrounding bar a subtle lift. Its reflective rim stays visible between tabs and settles back after selection.
 - **Physical Optical Refraction**: Snell's-law shader dynamically bends underlying graphics along the moving droplet's bevel rim, returning to zero displacement at rest.
 - **Three Material Tiers**: Automatic tier selection across GPU Shader Glass (Impeller), real-time Backdrop Blur, and high-contrast Opaque materials.
 - **Expandable Search**: Morphs navigation into an edge-to-edge floating search bar that anchors above the software keyboard without layout jumps.
@@ -283,10 +281,6 @@ LiquidTabBar(
 
 ## Styling & Optics
 
-<p align="center">
-  <img src="doc/images/styling.png" alt="Custom Styling" width="600" />
-</p>
-
 Customize outer materials, brand accents, and droplet fills using `LiquidTabBarTheme`. When omitted, styling automatically adapts to ambient light/dark brightness:
 
 ```dart
@@ -452,17 +446,6 @@ Droplet shadow rendering consumes `color`, `blurRadius`, and `offset`.
 
 ### Optical Refraction
 
-<table>
-  <tr>
-    <th width="50%">Subtle Refraction (<code>DropletRefractionStyle.subtle</code>)</th>
-    <th width="50%">Strong Refraction (<code>DropletRefractionStyle.strong</code>)</th>
-  </tr>
-  <tr>
-    <td><img src="doc/images/refraction_subtle.png" alt="Subtle Refraction" width="100%" /></td>
-    <td><img src="doc/images/refraction_strong.png" alt="Strong Refraction" width="100%" /></td>
-  </tr>
-</table>
-
 The moving droplet features physical optical refraction that dynamically distorts underlying icons and labels during motion. At rest, refraction displacement returns strictly to `0.0` to preserve crisp text and icon legibility.
 
 Curated presets:
@@ -496,8 +479,8 @@ dropletRefraction: const DropletRefractionStyle.medium(),
     <th width="50%">Split Placement (<code>LiquidTabActionPlacement.split</code>)</th>
   </tr>
   <tr>
-    <td><img src="doc/images/together.png" alt="Together Action Placement" width="100%" /></td>
-    <td><img src="doc/images/split.png" alt="Split Action Placement" width="100%" /></td>
+    <td><img src="doc/images/together.png" alt="Together action placement" width="100%" /></td>
+    <td><img src="doc/images/split.png" alt="Split action placement" width="100%" /></td>
   </tr>
 </table>
 
@@ -519,10 +502,6 @@ separateActionPlacement: LiquidTabActionPlacement.together, // or .split
 ---
 
 ## Notification Badges
-
-<p align="center">
-  <img src="doc/images/badges.png" alt="Notification Badges" width="600" />
-</p>
 
 `LiquidTabItem` includes integrated notification badges with four display modes:
 
@@ -554,12 +533,12 @@ LiquidTabItem.icon(
 
 <table>
   <tr>
-    <th width="50%">Expanded Search (Dismissed Keyboard)</th>
+    <th width="50%">Expanded Search</th>
     <th width="50%">Search with Keyboard Visible</th>
   </tr>
   <tr>
-    <td><img src="doc/images/search.png" alt="Expanded Search" width="100%" /></td>
-    <td><img src="doc/images/search_keyboard.png" alt="Search with Keyboard Visible" width="100%" /></td>
+    <td><img src="doc/images/search.png" alt="Expanded search" width="100%" /></td>
+    <td><img src="doc/images/search_keyboard.png" alt="Search with keyboard visible" width="100%" /></td>
   </tr>
 </table>
 
@@ -641,8 +620,8 @@ LiquidTabAction.search(
     <th width="50%">Oval Folded Shape (<code>LiquidFoldedShape.oval</code>)</th>
   </tr>
   <tr>
-    <td><img src="doc/images/folding_circle.png" alt="Folded Circle" width="100%" /></td>
-    <td><img src="doc/images/folding_oval.png" alt="Folded Oval" width="100%" /></td>
+    <td><img src="doc/images/folding_circle.png" alt="Folded circle" width="100%" /></td>
+    <td><img src="doc/images/folding_oval.png" alt="Folded oval" width="100%" /></td>
   </tr>
 </table>
 
@@ -719,10 +698,6 @@ If a `Scaffold` has `extendBody: true` but the scroll view lacks reserved paddin
 ---
 
 ## RTL & Bidirectionality
-
-<p align="center">
-  <img src="doc/images/rtl.png" alt="RTL Layout" width="600" />
-</p>
 
 `LiquidTabBar` automatically follows the app's ambient `Directionality`. RTL layouts (such as Arabic, Hebrew, and Persian) mirror tab ordering, gestures, and action placements with zero package-specific configuration.
 
