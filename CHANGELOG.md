@@ -1,5 +1,17 @@
 ## 2.0.0 - Unreleased
 
+- Brightened Light Glossy with a wider polished bevel and clearer frost while
+  preserving Dark Glossy. Increased Medium/Strong droplet optical depth and
+  spectral separation, then narrowed the color fringe for a more natural lens.
+- Added opt-in `LiquidBarStyle.glossy(brightness: ...)` with a polished neutral
+  bevel, clearer backdrop colors, and coordinated shader/blur palettes; exposed
+  it in the styling demo without changing the default surfaces.
+- Enabled subtle motion-only, content-sampled RGB dispersion in the droplet
+  presets. Color splits follow the curved bevel over icons and labels, leaving
+  flat centers and resting lenses unchanged; `dispersion: 0` disables the split.
+- Updated light and dark surfaces with translucent glass, neutral gray selection,
+  and subtle edge reflections. Removed the droplet's painted rainbow rim and
+  aligned default shader/blur tint palettes across iOS and Android.
 - Made the deformable droplet bar the sole public API and consolidated usage
   under `package:liquid_tab_bar/liquid_tab_bar.dart`.
 - Restored bounded liquid swelling, travel deformation, current-droplet hit

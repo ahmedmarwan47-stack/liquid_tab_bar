@@ -3,6 +3,50 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_tab_bar/liquid_tab_bar.dart';
 
 void main() {
+  test('Dark Glossy retains its accepted calibration', () {
+    final style = LiquidBarStyle.glossy(brightness: Brightness.dark);
+    expect(
+        style.glass,
+        LiquidBarStyle.dark.glass.copyWith(
+          rim: 8,
+          depth: 9,
+          blur: 12,
+          tint: const Color(0x661C1C1E),
+          specular: 0.50,
+          edgeDark: 0.10,
+        ));
+    expect(style.blurTint, const Color(0x661C1C1E));
+    expect(style.blurSheenTop, const Color(0x18FFFFFF));
+    expect(style.blurSheenBottom, const Color(0x06FFFFFF));
+    expect(style.blurEdge, const Color(0x38FFFFFF));
+  });
+  test('Light Glossy has brighter reflections without becoming opaque', () {
+    final style = LiquidBarStyle.glossy();
+    expect(style.glass.rim, 10);
+    expect(style.glass.blur, 10);
+    expect(style.glass.specular, 1.05);
+    expect(style.glass.tint, const Color(0x80FFFFFF));
+    expect(style.glass.edgeDark, 0.02);
+    expect(style.blurEdge, const Color(0xCCFFFFFF));
+  });
+  for (final brightness in Brightness.values) {
+    test('Glossy $brightness keeps neutral optics and matching fallback', () {
+      final base = brightness == Brightness.dark
+          ? LiquidBarStyle.dark
+          : LiquidBarStyle.light;
+      final glossy = LiquidBarStyle.glossy(brightness: brightness);
+      expect(glossy.glass.dispersion, 0);
+      expect(glossy.glass.tint, glossy.blurTint);
+      expect(glossy.glass.tint.a, lessThan(base.glass.tint.a));
+      expect(glossy.glass.rim, greaterThan(base.glass.rim));
+      expect(glossy.glass.specular, greaterThan(base.glass.specular));
+      expect(glossy.blurEdge.a, greaterThan(base.blurEdge.a));
+      expect(glossy.opaqueFill, base.opaqueFill);
+      expect(glossy.opaqueEdge, base.opaqueEdge);
+      expect(glossy.copyWith(), glossy);
+    });
+  }
+
   group('LiquidTabActionStyle', () {
     test('light and dark defaults preserve selected marker fills', () {
       expect(LiquidTabActionStyle.light.selectedFill, const Color(0x55FFFFFF));
@@ -26,13 +70,13 @@ void main() {
   group('LiquidDropletSurfaceStyle', () {
     test('canonical defaults preserve light and dark surface values', () {
       const light = LiquidDropletSurfaceStyle.light;
-      expect(light.shadow.color, const Color(0x14000000));
-      expect(light.shadow.blurRadius, 10);
-      expect(light.shadow.offset, const Offset(0, 3));
+      expect(light.shadow.color, const Color(0x0A000000));
+      expect(light.shadow.blurRadius, 4);
+      expect(light.shadow.offset, const Offset(0, 1));
       const dark = LiquidDropletSurfaceStyle.dark;
-      expect(dark.shadow.color, const Color(0x59000000));
-      expect(dark.shadow.blurRadius, 10);
-      expect(dark.shadow.offset, const Offset(0, 3));
+      expect(dark.shadow.color, const Color(0x24000000));
+      expect(dark.shadow.blurRadius, 4);
+      expect(dark.shadow.offset, const Offset(0, 1));
     });
 
     test('copyWith, lerp, equality and hashCode include BoxShadow', () {
@@ -49,7 +93,7 @@ void main() {
       expect(b.shadow.offset, const Offset(2, 4));
       expect(a, isNot(equals(b)));
       final halfway = LiquidDropletSurfaceStyle.lerp(a, b, 0.5);
-      expect(halfway.shadow.blurRadius, 15);
+      expect(halfway.shadow.blurRadius, 12);
       expect(a.hashCode, equals(LiquidDropletSurfaceStyle.light.hashCode));
       expect(a.toString(), contains('LiquidDropletSurfaceStyle'));
     });
@@ -264,7 +308,7 @@ void main() {
 
     test('dark theme preset has appropriate dark styling', () {
       const darkTheme = LiquidTabBarTheme.dark();
-      expect(darkTheme.activeColor, const Color(0xFF0A84FF));
+      expect(darkTheme.activeColor, const Color(0xFFF2F2F7));
       expect(darkTheme.barStyle.blurTint.a, lessThan(1.0));
       expect(darkTheme.barStyle.opaqueFill, const Color(0xFF1C1C1E));
     });
@@ -286,7 +330,7 @@ void main() {
       );
 
       final theme = LiquidTabBarTheme.adaptive(capturedContext);
-      expect(theme.activeColor, const Color(0xFF0A84FF));
+      expect(theme.activeColor, const Color(0xFFF2F2F7));
       expect(theme.barStyle.opaqueFill, const Color(0xFF1C1C1E));
     });
 

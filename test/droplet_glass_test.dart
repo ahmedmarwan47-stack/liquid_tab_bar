@@ -411,28 +411,23 @@ void main() {
       expect(style.thickness, 13.0);
       expect(style.rim, 13.0);
       expect(style.refractiveIndex, 1.50);
-      expect(style.baseHeight, 18.0);
-      expect(style.depth, 18.0);
-      expect(style.dispersion, 0.0);
+      expect(style.baseHeight, 24.0);
+      expect(style.depth, 24.0);
+      expect(style.dispersion, 0.16);
       expect(style.specularStrength, 0.15);
       expect(style.refractionStrength, 0.60);
     });
 
-    test('All built-in presets keep dispersion at 0.0 by default', () {
+    test('Built-in presets progressively split sampled light', () {
       const presets = [
         DropletRefractionStyle.none(),
         DropletRefractionStyle.subtle(),
         DropletRefractionStyle.medium(),
         DropletRefractionStyle.strong(),
       ];
-      for (final p in presets) {
-        expect(
-          p.dispersion,
-          0.0,
-          reason:
-              'Preset $p must keep dispersion at 0.0 for clean native glass',
-        );
-      }
+      expect(presets.map((p) => p.dispersion), [0.0, 0.06, 0.16, 0.24]);
+      expect(const DropletRefractionStyle(), presets[2]);
+      expect(presets[2].copyWith(dispersion: 0).dispersion, 0);
     });
 
     test('DropletRefractionStyle.none disables optical displacement only', () {

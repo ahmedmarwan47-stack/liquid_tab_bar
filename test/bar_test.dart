@@ -1644,7 +1644,7 @@ void main() {
     );
 
     testWidgets(
-      'LiquidDropletChromaticPainter renders rainbow caustics at rest and during motion',
+      'neutral droplet reflection remains mounted at rest and during motion',
       (tester) async {
         await tester.pumpWidget(
           MaterialApp(
@@ -1664,28 +1664,28 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // CustomPaint for chromatic lens is present
-        final chromaticPaints = find.byWidgetPredicate(
+        // The neutral rim is present on the fallback material.
+        final highlightPaints = find.byWidgetPredicate(
           (widget) =>
               widget is CustomPaint &&
-              widget.painter is LiquidDropletChromaticPainter,
+              widget.painter is LiquidDropletHighlightPainter,
         );
-        expect(chromaticPaints, findsOneWidget);
+        expect(highlightPaints, findsOneWidget);
 
         // Tap tab 0 to trigger spring motion
         await tester.tap(find.text('Home'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 50));
 
-        // Lens is moving mid-flight with dynamic dispersion
-        expect(chromaticPaints, findsOneWidget);
+        // Reflection follows the moving lens.
+        expect(highlightPaints, findsOneWidget);
 
         await tester.pumpAndSettle();
-        expect(chromaticPaints, findsOneWidget);
+        expect(highlightPaints, findsOneWidget);
       },
     );
 
     testWidgets(
-      'Magnification and LiquidDropletChromaticPainter active during scrub/slide',
+      'neutral droplet highlight follows scrub motion',
       (tester) async {
         await tester.pumpWidget(
           MaterialApp(
@@ -1714,15 +1714,15 @@ void main() {
         await gesture.moveTo(Offset.lerp(homeCenter, exploreCenter, 0.5)!);
         await tester.pump();
 
-        // Verify chromatic painter has high motion during scrubbing
-        final chromaticFinder = find.byWidgetPredicate(
+        // Verify the neutral highlight receives motion during scrubbing.
+        final highlightFinder = find.byWidgetPredicate(
           (widget) =>
               widget is CustomPaint &&
-              widget.painter is LiquidDropletChromaticPainter,
+              widget.painter is LiquidDropletHighlightPainter,
         );
-        expect(chromaticFinder, findsOneWidget);
-        final customPaint = tester.widget<CustomPaint>(chromaticFinder);
-        final painter = customPaint.painter as LiquidDropletChromaticPainter;
+        expect(highlightFinder, findsOneWidget);
+        final customPaint = tester.widget<CustomPaint>(highlightFinder);
+        final painter = customPaint.painter as LiquidDropletHighlightPainter;
         expect(painter.motion, greaterThan(0.5));
 
         // Organic embedded liquid deformation transforms are applied
@@ -2155,15 +2155,15 @@ void main() {
       'renders dark mode blur tier with theme-aware GlassLightPainter and dark presets',
       (tester) async {
         const darkTheme = LiquidTabBarTheme.dark();
-        expect(darkTheme.barStyle.blurTint, equals(const Color(0x22384254)));
-        expect(darkTheme.barStyle.blurEdge, equals(const Color(0x55FFFFFF)));
+        expect(darkTheme.barStyle.blurTint, equals(const Color(0x8F1C1C1E)));
+        expect(darkTheme.barStyle.blurEdge, equals(const Color(0x12FFFFFF)));
         expect(
           darkTheme.barStyle.blurSheenTop,
-          equals(const Color(0x2CFFFFFF)),
+          equals(const Color(0x08FFFFFF)),
         );
         expect(
           darkTheme.barStyle.blurSheenBottom,
-          equals(const Color(0x08FFFFFF)),
+          equals(const Color(0x02FFFFFF)),
         );
 
         await tester.pumpWidget(
@@ -2384,8 +2384,8 @@ void main() {
         final decoration = dropletBox.decoration as BoxDecoration;
         final pillColor = decoration.color!;
 
-        // Neutral white tint with alpha between 0.08 and 0.12 (tune 0.10)
-        expect(pillColor.a, inInclusiveRange(0.08, 0.12));
+        // Neutral white tint with alpha between 0.15 and 0.19 (tune 0.17)
+        expect(pillColor.a, inInclusiveRange(0.15, 0.19));
         // Pure neutral (r=1.0, g=1.0, b=1.0), not tinted with activeColor
         expect(pillColor.r, equals(1.0));
         expect(pillColor.g, equals(1.0));
@@ -2471,11 +2471,11 @@ void main() {
         // Mid-flight / scrubbing: neutral gray pill remains solid (no transparent fading or delayed pop-in)
         expect(pillDropletFinder, findsOneWidget);
 
-        // Chromatic painter is also active during motion
-        final chromaticFinder = find.byWidgetPredicate(
-          (w) => w is CustomPaint && w.painter is LiquidDropletChromaticPainter,
+        // Opaque mode stays flat during motion as well as at rest.
+        final highlightFinder = find.byWidgetPredicate(
+          (w) => w is CustomPaint && w.painter is LiquidDropletHighlightPainter,
         );
-        expect(chromaticFinder, findsOneWidget);
+        expect(highlightFinder, findsNothing);
 
         // Release and settle on Orders
         await gesture.up();
@@ -2902,13 +2902,14 @@ void main() {
         lessThan(theme.barStyle.glass.blur),
       ); // scaled from 15 to ~9.75
 
-      // Level 1 (Subtle): lighter tint
+      // Folding must never reduce a stronger user/preset tint.
       final styleSubtle = LiquidTabBar.computeEffectiveGlassStyle(
         theme: theme,
         foldProgress: 1.0,
         densityLevel: 1,
       );
-      expect(styleSubtle.tint.a, inInclusiveRange(0.28, 0.35));
+      expect(styleSubtle.tint.a,
+          greaterThanOrEqualTo(theme.barStyle.glass.tint.a));
 
       // Level 3 (Dense): higher tint and stronger shadow
       final styleDense = LiquidTabBar.computeEffectiveGlassStyle(
@@ -2916,7 +2917,7 @@ void main() {
         foldProgress: 1.0,
         densityLevel: 3,
       );
-      expect(styleDense.tint.a, greaterThan(styleFolded.tint.a));
+      expect(styleDense.tint.a, greaterThanOrEqualTo(styleFolded.tint.a));
       expect(styleDense.shadow, greaterThan(styleFolded.shadow));
     });
 

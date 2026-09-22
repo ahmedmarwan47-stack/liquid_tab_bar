@@ -59,7 +59,7 @@ void main() {
   // Return the backdrop untouched!
   // This guarantees that at rest (or when refractionStrength == 0.0), the droplet's appearance
   // is 100% defined by the authentic droplet design: _lensSurface (gradient, border, shadow) and
-  // LiquidDropletChromaticPainter (specular hairline), with ZERO extra tint,
+  // LiquidDropletHighlightPainter (specular hairline), with ZERO extra tint,
   // ZERO extra specular highlights, and ZERO distortion.
   float motionFactor = clamp(uMotionStrength, 0.0, 1.0);
   float refrStrength = max(uRefractionStrength, 0.0);
@@ -112,22 +112,29 @@ void main() {
   float optDepth = height + uBaseHeight;
   vec2 disp = refracted.xy * (optDepth / max(abs(refracted.z), 0.2)) * (motionFactor * refrStrength);
 
-  // Background texture sampling:
+  // Separate wavelengths only along the curved bevel. Color comes from
+  // contrast in the backdrop (icons/labels), not a painted spectral border.
+  // Blue bends farther inward than red; the flat center stays unsplit.
   vec4 bgCol;
-  float effDispersion = uDispersion * motionFactor;
+  // Displacement already fades with motion. Fading the spread a second time
+  // made the prism effect disappear during most of a normal tab transition.
+  float effDispersion = uDispersion * smoothstep(0.25, 0.80, n_cos);
   if (effDispersion <= 0.001) {
     bgCol = tap(p + disp);
   } else {
-    float redOff = 1.0 + effDispersion;
-    float blueOff = 1.0 - effDispersion;
+    float redOff = 1.0 - effDispersion;
+    float blueOff = 1.0 + effDispersion;
     float rChannel = tap(p + disp * redOff).r;
     vec4 gSample = tap(p + disp);
     float bChannel = tap(p + disp * blueOff).b;
     bgCol = vec4(rChannel, gSample.g, bChannel, gSample.a);
   }
 
-  // During motion: subtle refractive edge sheen to define the moving lens boundary
-  float edgeSheen = pow(n_cos, 2.5) * motionFactor * max(uSpecular, 0.0);
+  // A narrow directional reflection defines the rim without whitening the
+  // refracted glyphs and washing out their spectral edges.
+  float facing = max(dot(boundaryNormal, normalize(uLight + vec2(0.0001))), 0.0);
+  float edgeSheen = pow(n_cos, 5.0) * (0.25 + 0.75 * facing)
+      * motionFactor * max(uSpecular, 0.0);
   vec3 col = bgCol.rgb + vec3(edgeSheen);
 
   // Antialiasing: smooth transition from refracted interior to unaffected exterior

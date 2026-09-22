@@ -11,7 +11,7 @@ class StylingExample extends StatefulWidget {
 
 class _StylingExampleState extends State<StylingExample> {
   int _selected = 0;
-  bool _custom = false;
+  int _style = 0;
   int _preset = 2;
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -25,11 +25,11 @@ class _StylingExampleState extends State<StylingExample> {
               Wrap(
                 spacing: 8,
                 children: [
-                  for (final custom in [false, true])
+                  for (var i = 0; i < 3; i++)
                     ChoiceChip(
-                      label: Text(custom ? 'Custom' : 'Default'),
-                      selected: _custom == custom,
-                      onSelected: (_) => setState(() => _custom = custom),
+                      label: Text(['Default', 'Glossy', 'Custom'][i]),
+                      selected: _style == i,
+                      onSelected: (_) => setState(() => _style = i),
                     ),
                 ],
               ),
@@ -59,19 +59,26 @@ class _StylingExampleState extends State<StylingExample> {
             const DropletRefractionStyle.medium(),
             const DropletRefractionStyle.strong(),
           ][_preset],
-          theme: _custom
+          theme: _style == 1
               ? LiquidTabBarTheme.adaptive(context).copyWith(
-                  activeColor: const Color(0xFF9D572D),
-                  barStyle: LiquidBarStyle.light.copyWith(
-                    glass: GlassStyle.prismaticCaustics,
-                    blurTint: const Color(0x45F4E4CA),
-                  ),
-                  dropletSurfaceStyle: LiquidDropletSurfaceStyle.light.copyWith(
-                    borderColor: const Color(0x88C89D6C),
-                    borderWidth: 1.0,
+                  barStyle: LiquidBarStyle.glossy(
+                    brightness: Theme.of(context).brightness,
                   ),
                 )
-              : null,
+              : _style == 2
+                  ? LiquidTabBarTheme.adaptive(context).copyWith(
+                      activeColor: const Color(0xFF9D572D),
+                      barStyle: LiquidBarStyle.light.copyWith(
+                        glass: GlassStyle.prismaticCaustics,
+                        blurTint: const Color(0x45F4E4CA),
+                      ),
+                      dropletSurfaceStyle:
+                          LiquidDropletSurfaceStyle.light.copyWith(
+                        borderColor: const Color(0x88C89D6C),
+                        borderWidth: 1.0,
+                      ),
+                    )
+                  : null,
         ),
       );
 }

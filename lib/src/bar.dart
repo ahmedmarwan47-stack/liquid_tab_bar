@@ -66,9 +66,8 @@ const _darkDropletGlass = GlassStyle(
 /// selected tab, scrolling up opens it; the lens slides between tabs on a
 /// spring and stretches with its own speed; a finger can press and scrub
 /// along the bar, the lens glued to it with a tick at every tab, and release
-/// to choose. While it moves the lens disperses light like a soap bubble —
-/// the glyphs and labels its rim crosses split into a warm copy and a cool
-/// one, and a thin-film band lies along its edge. All of it jumps straight to
+/// to choose. While it moves, the lens refracts content along its rim and
+/// catches a neutral edge highlight. All of it jumps straight to
 /// the end state under Reduce Motion.
 ///
 /// **It only works because the page passes underneath it.** Put it in
@@ -256,7 +255,7 @@ class LiquidTabBar extends StatefulWidget {
   static const double _iconLabelGap = 4;
 
   /// The speed at which the moving lens reaches its full visual motion state.
-  static const double _fringeFullSpeed = 3;
+  static const double _highlightFullSpeed = 3;
   static const int _defaultFoldedDensityLevel = 2;
 
   /// How far a finger travels along the bar before a press is a scrub.
@@ -555,7 +554,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
   bool _isSearching = false;
   bool _searchCloseRequested = false;
   AnimationStatusListener? _searchFocusListener;
-  final ChromaticShaderCache _lensChromaticCache = ChromaticShaderCache();
+  final DropletHighlightCache _lensHighlightCache = DropletHighlightCache();
   final Map<AnimationController, int> _springGenerations = {};
 
   LiquidTabBarSearch? get _effectiveSearch => _effectiveAction?.search;
@@ -1623,7 +1622,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
           _scrubbing ? (distFromSlot * 2.0).clamp(0.0, 1.0) : 0.0;
       final motion = math.max(
         scrubBetween * 0.85,
-        (speed / (LiquidTabBar._fringeFullSpeed * 0.5)).clamp(0.0, 1.0),
+        (speed / (LiquidTabBar._highlightFullSpeed * 0.5)).clamp(0.0, 1.0),
       );
       lensMotion = motion;
 
@@ -1962,14 +1961,13 @@ class _LiquidTabBarState extends State<LiquidTabBar>
       );
     }
 
-    // The chromatic lens overlay rides in front of the glyphs as the glass top surface,
-    // projecting the crisp diamond-cut specular rim, curved top/bottom meniscus highlights,
-    // and electric-cyan / azure dispersion caustics over the magnified icons.
+    // A neutral reflection outlines the curved glass without coloring its
+    // contents. The opaque accessibility tier needs no reflective overlay.
     if (activeV != null &&
         lensFade > 0 &&
         lensCxLocal != null &&
         lensStyle != null &&
-        (m != LiquidTabBarMaterial.opaque || lensMotion > 0.01)) {
+        m != LiquidTabBarMaterial.opaque) {
       final isDark = th.barStyle.blurTint.computeLuminance() < 0.2;
       children.add(
         Positioned(
@@ -1979,13 +1977,12 @@ class _LiquidTabBarState extends State<LiquidTabBar>
           height: lensH,
           child: IgnorePointer(
             child: CustomPaint(
-              painter: LiquidDropletChromaticPainter(
+              painter: LiquidDropletHighlightPainter(
                 radius: lensH / 2,
                 motion: lensMotion,
-                velocity: _lensVelocity,
                 isDark: isDark,
                 fade: lensFade,
-                cache: _lensChromaticCache,
+                cache: _lensHighlightCache,
               ),
               child: const SizedBox.expand(),
             ),

@@ -6,8 +6,37 @@ import 'package:liquid_tab_bar_example/examples/basic_example.dart';
 import 'package:liquid_tab_bar_example/examples/actions_example.dart';
 import 'package:liquid_tab_bar_example/examples/advanced_example.dart';
 import 'package:liquid_tab_bar_example/examples/custom_icons_example.dart';
+import 'package:liquid_tab_bar_example/examples/styling_example.dart';
 
 void main() {
+  for (final brightness in Brightness.values) {
+    testWidgets('Glossy demo switches exclusively in $brightness',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        theme: ThemeData(brightness: brightness),
+        home: const StylingExample(),
+      ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Glossy'));
+      await tester.pumpAndSettle();
+      final bar = tester.widget<LiquidTabBar>(find.byType(LiquidTabBar));
+      expect(
+          bar.theme!.barStyle, LiquidBarStyle.glossy(brightness: brightness));
+      for (final label in ['Default', 'Glossy', 'Custom']) {
+        expect(
+            tester
+                .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, label))
+                .selected,
+            label == 'Glossy');
+      }
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Default'));
+      await tester.pumpAndSettle();
+      expect(
+          tester.widget<LiquidTabBar>(find.byType(LiquidTabBar)).theme, isNull);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('launcher boots with demos', (tester) async {
     await tester.pumpWidget(const LiquidTabBarExampleApp());
     expect(find.byType(ListTile), findsNWidgets(5));

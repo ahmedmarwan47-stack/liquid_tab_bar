@@ -293,17 +293,20 @@ Customize outer materials, brand accents, and droplet fills using `LiquidTabBarT
 LiquidTabBar(
   theme: LiquidTabBarTheme.adaptive(context).copyWith(
     activeColor: const Color(0xFF007AFF),
-    barStyle: LiquidBarStyle.light.copyWith(
-      glass: GlassStyle.prismaticCaustics,
-      blurTint: const Color(0x35FFFFFF),
-    ),
-    dropletSurfaceStyle: LiquidDropletSurfaceStyle.light.copyWith(
-      borderWidth: 1.0,
-    ),
   ),
   // ...
 )
 ```
+
+The default light and dark themes use a translucent capsule, neutral gray
+selection, and a soft reflective rim. Motion-only droplet refraction bends the
+icons and labels underneath the moving lens; its RGB dispersion creates fine
+color fringes at high contrast edges. The blur fallback keeps the same surface
+palette and selection styling, while high-contrast mode uses the opaque tier.
+
+Use `const LiquidTabBarTheme()` to force light styling or
+`const LiquidTabBarTheme.dark()` to force dark styling. `adaptive(context)` also
+uses your app's primary color for the selected icon and label.
 
 ### Material Tiers
 
@@ -318,6 +321,25 @@ LiquidTabBar(
 
 ### Presets
 
+#### Glossy capsule
+
+Added optional `LiquidBarStyle.glossy(brightness: ...)` for light and dark modes.
+
+Opt into a brighter neutral bevel, luminous tint, and clearer backdrop colors:
+
+```dart
+theme: LiquidTabBarTheme.adaptive(context).copyWith(
+  barStyle: LiquidBarStyle.glossy(
+    brightness: Theme.of(context).brightness,
+  ),
+),
+```
+
+The preset styles the bar and separate action buttons with matching light/dark
+palettes and a blur fallback. Light Glossy has brighter white reflections and
+less frost; Dark Glossy keeps its translucent charcoal finish.
+Try **Glossy** in the **Styling & Refraction** demo.
+
 #### Refraction presets
 
 ```dart
@@ -326,6 +348,11 @@ DropletRefractionStyle.subtle()
 DropletRefractionStyle.medium() // default
 DropletRefractionStyle.strong()
 ```
+
+Medium and Strong bend content more deeply, with thin motion-only color fringes
+where the curved lens crosses icons and labels. The effect is sampled from the
+backdrop and the resting droplet remains unchanged. Set `dispersion: 0` to keep
+the bend without RGB separation.
 
 Example:
 

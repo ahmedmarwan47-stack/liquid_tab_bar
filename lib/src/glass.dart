@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart';
@@ -83,8 +82,8 @@ class DropletRefractionStyle {
   const DropletRefractionStyle({
     this.thickness = 13.0,
     this.refractiveIndex = 1.50,
-    this.baseHeight = 18.0,
-    this.dispersion = 0.0,
+    this.baseHeight = 24.0,
+    this.dispersion = 0.16,
     this.specularStrength = 0.15,
     this.refractionStrength = 0.60,
   })  : assert(thickness >= 1.0, 'thickness must be >= 1.0'),
@@ -109,34 +108,35 @@ class DropletRefractionStyle {
 
   /// Subtle optical refraction with gentle boundary displacement.
   ///
-  /// Keeps [dispersion] at 0.0 for clean, distortion-free native glass.
+  /// Adds a faint color split where the moving bevel crosses contrast edges.
   const DropletRefractionStyle.subtle()
       : thickness = 10.0,
         refractiveIndex = 1.35,
         baseHeight = 12.0,
-        dispersion = 0.0,
+        dispersion = 0.06,
         specularStrength = 0.10,
         refractionStrength = 0.35;
 
   /// Medium (default) optical refraction calibrated for the navigation droplet.
   ///
-  /// Keeps [dispersion] at 0.0 for clean, distortion-free native glass.
+  /// Fine, content-driven color fringes follow the moving bevel, never a
+  /// painted rainbow border. The center and resting lens remain undistorted.
   const DropletRefractionStyle.medium()
       : thickness = 13.0,
         refractiveIndex = 1.50,
-        baseHeight = 18.0,
-        dispersion = 0.0,
+        baseHeight = 24.0,
+        dispersion = 0.16,
         specularStrength = 0.15,
         refractionStrength = 0.60;
 
   /// Strong optical refraction with pronounced lens curvature and deeper displacement.
   ///
-  /// Keeps [dispersion] at 0.0 by default for clean, non-chromatic native glass.
+  /// More visible edge dispersion accompanies the deeper moving lens.
   const DropletRefractionStyle.strong()
       : thickness = 16.0,
         refractiveIndex = 1.65,
-        baseHeight = 26.0,
-        dispersion = 0.0,
+        baseHeight = 32.0,
+        dispersion = 0.24,
         specularStrength = 0.25,
         refractionStrength = 1.00;
 
@@ -149,7 +149,9 @@ class DropletRefractionStyle {
   /// Standoff optical depth (base height) in logical pixels for ray projection.
   final double baseHeight;
 
-  /// Chromatic dispersion spread (0.0 = disabled, > 0 splits RGB).
+  /// Chromatic dispersion spread (0.0 = disabled, > 0 splits sampled RGB).
+  /// Only affects the moving curved bevel on shader-capable renderers;
+  /// uniform backgrounds stay neutral and the resting lens is unchanged.
   final double dispersion;
 
   /// Specular highlight intensity along the moving refractive boundary rim.
@@ -1046,228 +1048,80 @@ class GlassLightPainter extends CustomPainter {
       old.style != style || old.radius != radius || old.isDark != isDark;
 }
 
-/// Paints realistic optical liquid glass effects on the selection lens:
-/// - At rest: a pristine diamond-cut specular hairline along the lit rim (no colored border).
-/// - When sliding / moving: active chromatic dispersion caustics matching iOS liquid glass,
-///   featuring electric-cyan & azure lateral refractions, dual top & bottom glass loupe rim
-///   highlights, and dynamic velocity-based spectral dispersion.
-/// Caches reusable [Paint] and [Shader] instances for [LiquidDropletChromaticPainter]
-/// to avoid allocating multiple native shaders and paint objects on every animation frame.
-class ChromaticShaderCache {
+/// Reuses the neutral rim shader while the droplet geometry is unchanged.
+class DropletHighlightCache {
   Rect? rect;
   bool? isDark;
   double? fade;
   double? motion;
-  double? velocity;
-  double? lastSpecularAlpha;
-  double? lastCausticsAlpha;
-
-  final Paint specularPaint = Paint()
+  Shader? shader;
+  final Paint paint = Paint()
     ..style = PaintingStyle.stroke
-    ..strokeWidth = 1.0;
-  final Paint topRimPaint = Paint()..style = PaintingStyle.stroke;
-  final Paint bottomRimPaint = Paint()..style = PaintingStyle.stroke;
-  final Paint causticsPaint = Paint()..style = PaintingStyle.stroke;
-  final Paint directionalPaint = Paint()..style = PaintingStyle.stroke;
-  final Paint innerRefractionPaint = Paint()..style = PaintingStyle.fill;
-
-  Shader? specularShader;
-  Shader? topRimShader;
-  Shader? bottomRimShader;
-  Shader? sweepShader;
-  Shader? directionalShader;
-  Shader? innerRefractionShader;
+    ..strokeWidth = 0.75;
 }
 
-/// Paints realistic optical liquid glass effects on the selection lens:
-/// - At rest: a pristine diamond-cut specular hairline along the lit rim (no colored border).
-/// - When sliding / moving: active chromatic dispersion caustics matching iOS liquid glass,
-///   featuring electric-cyan & azure lateral refractions, dual top & bottom glass loupe rim
-///   highlights, and dynamic velocity-based spectral dispersion.
-class LiquidDropletChromaticPainter extends CustomPainter {
-  LiquidDropletChromaticPainter({
+/// Neutral edge reflections for the moving selection capsule.
+///
+/// The center stays transparent, so neither the selected glyph nor the backdrop
+/// receives an artificial color wash. Optical dispersion, when explicitly
+/// requested, belongs to the refraction shader rather than painted RGB stripes.
+class LiquidDropletHighlightPainter extends CustomPainter {
+  LiquidDropletHighlightPainter({
     required this.radius,
     required this.motion,
-    required this.velocity,
     required this.isDark,
     required this.fade,
-    ChromaticShaderCache? cache,
-  }) : cache = cache ?? _fallbackCache;
-
-  static final ChromaticShaderCache _fallbackCache = ChromaticShaderCache();
-  final ChromaticShaderCache cache;
+    required this.cache,
+  });
 
   final double radius;
-  final double motion; // 0.0 at rest, up to 1.0 when moving
-  final double velocity; // horizontal velocity of the lens
+  final double motion;
   final bool isDark;
   final double fade;
+  final DropletHighlightCache cache;
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (size.width <= 0 || size.height <= 0 || fade <= 0) return;
-
+    if (size.isEmpty || fade <= 0) return;
     final rect = Offset.zero & size;
-    final r = Radius.circular(radius);
-    final rrect = RRect.fromRectAndRadius(rect, r);
-
-    final c = cache;
-    final bool rectChanged = c.rect != rect;
-    final bool darkChanged = c.isDark != isDark;
-    final bool fadeChanged = c.fade == null || (c.fade! - fade).abs() > 0.01;
-    final bool motionChanged =
-        c.motion == null || (c.motion! - motion).abs() > 0.01;
-
-    // 1. Diamond-cut specular hairline along the lit top-left edge
-    final specularAlpha = ((isDark ? 0.65 : 0.85) * fade).clamp(0.0, 1.0);
-    if (rectChanged ||
-        darkChanged ||
-        fadeChanged ||
-        c.specularShader == null ||
-        c.lastSpecularAlpha == null ||
-        (c.lastSpecularAlpha! - specularAlpha).abs() > 0.01) {
-      c.specularShader = LinearGradient(
-        begin: const Alignment(-0.6, -0.9),
-        end: const Alignment(0.6, 0.9),
+    final movement = motion.clamp(0.0, 1.0);
+    final opacity = fade.clamp(0.0, 1.0);
+    if (cache.rect != rect ||
+        cache.isDark != isDark ||
+        cache.fade != opacity ||
+        cache.motion != movement ||
+        cache.shader == null) {
+      // Bright opposing edges describe a curved surface. The quiet center and
+      // short highlight keep the resting selection from looking outlined.
+      final top = (isDark ? 0.10 : 0.28) + 0.22 * movement;
+      final bottom = (isDark ? 0.04 : 0.12) + 0.12 * movement;
+      cache.shader = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
         colors: [
-          (isDark ? const Color(0x99FFFFFF) : const Color(0xDDFFFFFF))
-              .withValues(alpha: specularAlpha),
-          (isDark ? const Color(0x30FFFFFF) : const Color(0x50FFFFFF))
-              .withValues(alpha: specularAlpha * 0.35),
+          Color.fromRGBO(255, 255, 255, top * opacity),
+          Color.fromRGBO(255, 255, 255, top * 0.25 * opacity),
           const Color(0x00FFFFFF),
+          Color.fromRGBO(255, 255, 255, bottom * opacity),
         ],
-        stops: const [0.0, 0.30, 0.65],
+        stops: const [0.0, 0.28, 0.65, 1.0],
       ).createShader(rect);
-      c.lastSpecularAlpha = specularAlpha;
+      cache.rect = rect;
+      cache.isDark = isDark;
+      cache.fade = opacity;
+      cache.motion = movement;
     }
-    c.specularPaint.shader = c.specularShader;
-    canvas.drawRRect(rrect.deflate(0.5), c.specularPaint);
-
-    // When the lens slides/moves, activate the full liquid glass chromatic lens effects!
-    if (motion > 0.02) {
-      final causticsAlpha = (motion * (isDark ? 0.92 : 0.80) * fade).clamp(
-        0.0,
-        1.0,
-      );
-
-      final bool needCausticsUpdate = rectChanged ||
-          darkChanged ||
-          motionChanged ||
-          fadeChanged ||
-          c.topRimShader == null ||
-          c.lastCausticsAlpha == null ||
-          (c.lastCausticsAlpha! - causticsAlpha).abs() > 0.01;
-
-      if (needCausticsUpdate) {
-        c.lastCausticsAlpha = causticsAlpha;
-
-        c.topRimPaint.strokeWidth = 1.4 + 0.4 * motion;
-        c.topRimShader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: const Alignment(0.0, -0.2),
-          colors: [
-            const Color(0xFFFFFFFF).withValues(alpha: causticsAlpha * 0.90),
-            const Color(0x60FFFFFF).withValues(alpha: causticsAlpha * 0.40),
-            const Color(0x00FFFFFF),
-          ],
-          stops: const [0.0, 0.5, 1.0],
-        ).createShader(rect);
-
-        c.bottomRimPaint.strokeWidth = 1.2 + 0.3 * motion;
-        c.bottomRimShader = LinearGradient(
-          begin: Alignment.bottomCenter,
-          end: const Alignment(0.0, 0.2),
-          colors: [
-            (isDark ? const Color(0xCCFFFFFF) : const Color(0xEEFFFFFF))
-                .withValues(alpha: causticsAlpha * 0.65),
-            const Color(0x40FFFFFF).withValues(alpha: causticsAlpha * 0.25),
-            const Color(0x00FFFFFF),
-          ],
-          stops: const [0.0, 0.5, 1.0],
-        ).createShader(rect);
-
-        final causticsWidth = 1.6 + 1.2 * motion;
-        c.causticsPaint.strokeWidth = causticsWidth;
-        c.sweepShader = SweepGradient(
-          center: Alignment.center,
-          startAngle: 0.0,
-          endAngle: math.pi * 2,
-          colors: [
-            const Color(0xFF00E5FF).withValues(alpha: causticsAlpha * 0.95),
-            const Color(0xFF0091FF).withValues(alpha: causticsAlpha * 0.90),
-            const Color(0x000091FF),
-            const Color(0xFF7C4DFF).withValues(alpha: causticsAlpha * 0.70),
-            const Color(0xFF0091FF).withValues(alpha: causticsAlpha * 0.90),
-            const Color(0xFF00E5FF).withValues(alpha: causticsAlpha * 0.95),
-            const Color(0x0000E5FF),
-            const Color(0xFF00E5FF).withValues(alpha: causticsAlpha * 0.95),
-          ],
-          stops: const [0.0, 0.12, 0.25, 0.45, 0.52, 0.62, 0.75, 1.0],
-        ).createShader(rect);
-
-        c.innerRefractionShader = RadialGradient(
-          center: Alignment.center,
-          radius: 0.90,
-          colors: [
-            const Color(0x0000E5FF),
-            const Color(0xFF00E5FF).withValues(alpha: 0.06 * causticsAlpha),
-            const Color(0xFF0080FF).withValues(alpha: 0.14 * causticsAlpha),
-          ],
-          stops: const [0.4, 0.8, 1.0],
-        ).createShader(rect);
-      }
-
-      c.topRimPaint.shader = c.topRimShader;
-      canvas.drawRRect(rrect.deflate(0.7), c.topRimPaint);
-
-      c.bottomRimPaint.shader = c.bottomRimShader;
-      canvas.drawRRect(rrect.deflate(0.6), c.bottomRimPaint);
-
-      final causticsWidth = 1.6 + 1.2 * motion;
-      c.causticsPaint.strokeWidth = causticsWidth;
-      c.causticsPaint.shader = c.sweepShader;
-      canvas.drawRRect(rrect.deflate(causticsWidth / 2), c.causticsPaint);
-
-      if (velocity.abs() > 0.05) {
-        final isMovingRight = velocity > 0;
-        final bool velChanged = c.velocity == null ||
-            (c.velocity! > 0) != isMovingRight ||
-            (c.velocity! - velocity).abs() > 0.1;
-        if (needCausticsUpdate || velChanged || c.directionalShader == null) {
-          c.directionalPaint.strokeWidth = 1.4 + 1.0 * motion;
-          c.directionalShader = LinearGradient(
-            begin: isMovingRight
-                ? const Alignment(-1.0, 0.0)
-                : const Alignment(1.0, 0.0),
-            end: isMovingRight
-                ? const Alignment(1.0, 0.0)
-                : const Alignment(-1.0, 0.0),
-            colors: [
-              const Color(0xFF7C4DFF).withValues(alpha: causticsAlpha * 0.65),
-              const Color(0x0000E5FF),
-              const Color(0xFF00E5FF).withValues(alpha: causticsAlpha * 0.85),
-            ],
-            stops: const [0.0, 0.5, 1.0],
-          ).createShader(rect);
-        }
-        c.directionalPaint.shader = c.directionalShader;
-        canvas.drawRRect(rrect.deflate(0.8), c.directionalPaint);
-      }
-
-      c.innerRefractionPaint.shader = c.innerRefractionShader;
-      canvas.drawRRect(rrect.deflate(1.0), c.innerRefractionPaint);
-    }
-
-    c.rect = rect;
-    c.isDark = isDark;
-    c.fade = fade;
-    c.motion = motion;
-    c.velocity = velocity;
+    cache.paint.shader = cache.shader;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, Radius.circular(radius)).deflate(0.5),
+      cache.paint,
+    );
   }
 
   @override
-  // The parent rebuilds this painter while the lens moves through a fixed
-  // local rect. Always repaint to preserve the former frame cadence after
-  // removing the unused public `style` comparison trigger.
-  bool shouldRepaint(LiquidDropletChromaticPainter old) => true;
+  bool shouldRepaint(LiquidDropletHighlightPainter old) =>
+      old.radius != radius ||
+      old.motion != motion ||
+      old.isDark != isDark ||
+      old.fade != fade;
 }

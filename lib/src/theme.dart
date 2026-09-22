@@ -564,8 +564,7 @@ class LiquidTabItem {
   bool get hasBadge => badge;
 }
 
-/// Surface styling for the moving selection droplet on the blur and opaque
-/// material tiers.
+/// Surface styling for the moving selection droplet on every material tier.
 @immutable
 class LiquidDropletSurfaceStyle {
   const LiquidDropletSurfaceStyle({
@@ -578,27 +577,27 @@ class LiquidDropletSurfaceStyle {
   });
 
   static const light = LiquidDropletSurfaceStyle(
-    gradientTop: Color(0x73FFFFFF),
-    gradientBottom: Color(0x33FFFFFF),
-    borderColor: Color(0x40FFFFFF),
+    gradientTop: Color(0x12000000),
+    gradientBottom: Color(0x0C000000),
+    borderColor: Color(0x00000000),
     shadow: BoxShadow(
-      color: Color(0x14000000),
-      blurRadius: 10,
-      offset: Offset(0, 3),
+      color: Color(0x0A000000),
+      blurRadius: 4,
+      offset: Offset(0, 1),
     ),
     opaqueFill: Color(0x0F000000),
   );
 
   static const dark = LiquidDropletSurfaceStyle(
-    gradientTop: Color(0x59FFFFFF),
-    gradientBottom: Color(0x1FFFFFFF),
-    borderColor: Color(0x4DFFFFFF),
+    gradientTop: Color(0x24FFFFFF),
+    gradientBottom: Color(0x20FFFFFF),
+    borderColor: Color(0x00FFFFFF),
     shadow: BoxShadow(
-      color: Color(0x59000000),
-      blurRadius: 10,
-      offset: Offset(0, 3),
+      color: Color(0x24000000),
+      blurRadius: 4,
+      offset: Offset(0, 1),
     ),
-    opaqueFill: Color(0x1AFFFFFF),
+    opaqueFill: Color(0x2BFFFFFF),
   );
 
   final Color gradientTop;
@@ -675,23 +674,48 @@ class LiquidDropletSurfaceStyle {
 class LiquidBarStyle {
   const LiquidBarStyle({
     this.glass = lightGlass,
-    this.blurTint = const Color(0x32FFFFFF),
-    this.blurSheenTop = const Color(0x30FFFFFF),
-    this.blurSheenBottom = const Color(0x04FFFFFF),
-    this.blurEdge = const Color(0x65FFFFFF),
+    this.blurTint = const Color(0x8FFFFFFF),
+    this.blurSheenTop = const Color(0x08FFFFFF),
+    this.blurSheenBottom = const Color(0x02FFFFFF),
+    this.blurEdge = const Color(0x30FFFFFF),
     this.opaqueFill = const Color(0xFFFFFFFF),
     this.opaqueEdge = const Color(0xFFE6E5E2),
     this.shadow = lightShadow,
   });
 
+  /// A more transparent, polished capsule with a bright, neutral bevel.
+  ///
+  /// Applies to the bar and its separate actions in both shader and blur tiers.
+  /// Pass the surrounding theme's brightness for matching light/dark styling.
+  /// Opaque accessibility surfaces are preserved from the base palette.
+  factory LiquidBarStyle.glossy({Brightness brightness = Brightness.light}) {
+    final isDark = brightness == Brightness.dark;
+    final base = isDark ? dark : light;
+    final tint = isDark ? const Color(0x661C1C1E) : const Color(0x80FFFFFF);
+    return base.copyWith(
+      glass: base.glass.copyWith(
+        rim: isDark ? 8 : 10,
+        depth: isDark ? 9 : 11,
+        blur: isDark ? 12 : 10,
+        tint: tint,
+        specular: isDark ? 0.50 : 1.05,
+        edgeDark: isDark ? 0.10 : 0.02,
+      ),
+      blurTint: tint,
+      blurSheenTop: Color(isDark ? 0x18FFFFFF : 0x48FFFFFF),
+      blurSheenBottom: Color(isDark ? 0x06FFFFFF : 0x18FFFFFF),
+      blurEdge: Color(isDark ? 0x38FFFFFF : 0xCCFFFFFF),
+    );
+  }
+
   static const GlassStyle lightGlass = GlassStyle(
     rim: 5,
     curve: 1.0,
     depth: 6,
-    dispersion: 0.08,
-    blur: 24,
-    saturation: 1.25,
-    tint: Color(0x32FFFFFF),
+    dispersion: 0.0,
+    blur: 18,
+    saturation: 1.15,
+    tint: Color(0x8FFFFFFF),
     specular: 0.38,
     light: Offset(-0.55, -0.85),
     edgeDark: 0.02,
@@ -704,13 +728,13 @@ class LiquidBarStyle {
     rim: 5,
     curve: 1.0,
     depth: 6,
-    dispersion: 0.08,
-    blur: 24,
-    saturation: 1.30,
-    tint: Color(0x26384254),
-    specular: 0.60,
+    dispersion: 0.0,
+    blur: 18,
+    saturation: 1.08,
+    tint: Color(0x8F1C1C1E),
+    specular: 0.38,
     light: Offset(-0.55, -0.85),
-    edgeDark: 0.14,
+    edgeDark: 0.08,
     shadow: 0.12,
     shadowBlur: 24,
     shadowOffset: Offset(0, 8),
@@ -728,21 +752,21 @@ class LiquidBarStyle {
 
   static const List<BoxShadow> darkShadow = [
     BoxShadow(
-      color: Color(0x55000000),
+      color: Color(0x40000000),
       offset: Offset(0, 10),
       blurRadius: 28,
       spreadRadius: -2,
     ),
-    BoxShadow(color: Color(0x20000000), offset: Offset(0, 2), blurRadius: 8),
+    BoxShadow(color: Color(0x18000000), offset: Offset(0, 2), blurRadius: 8),
   ];
 
   static const LiquidBarStyle light = LiquidBarStyle();
   static const LiquidBarStyle dark = LiquidBarStyle(
     glass: darkGlass,
-    blurTint: Color(0x22384254),
-    blurSheenTop: Color(0x2CFFFFFF),
-    blurSheenBottom: Color(0x08FFFFFF),
-    blurEdge: Color(0x55FFFFFF),
+    blurTint: Color(0x8F1C1C1E),
+    blurSheenTop: Color(0x08FFFFFF),
+    blurSheenBottom: Color(0x02FFFFFF),
+    blurEdge: Color(0x12FFFFFF),
     opaqueFill: Color(0xFF1C1C1E),
     opaqueEdge: Color(0xFF2C2C2E),
     shadow: darkShadow,
@@ -850,8 +874,8 @@ class LiquidTabBarTheme {
 
   /// A dark glass theme preset for dark mode backgrounds.
   const LiquidTabBarTheme.dark({
-    this.activeColor = const Color(0xFF0A84FF),
-    this.inactiveColor = const Color(0xCCEBEBF5),
+    this.activeColor = const Color(0xFFF2F2F7),
+    this.inactiveColor = const Color(0xCCF2F2F7),
     this.labelStyle = const TextStyle(),
     this.barStyle = LiquidBarStyle.dark,
     this.actionStyle = LiquidTabActionStyle.dark,
@@ -883,7 +907,7 @@ class LiquidTabBarTheme {
     final isDark = brightness == Brightness.dark;
     if (isDark) {
       return LiquidTabBarTheme.dark(
-        activeColor: primary ?? const Color(0xFF0A84FF),
+        activeColor: primary ?? const Color(0xFFF2F2F7),
       );
     }
     return LiquidTabBarTheme(activeColor: primary ?? const Color(0xFF007AFF));
@@ -904,7 +928,7 @@ class LiquidTabBarTheme {
   /// Styling for the selected marker behind a separate action.
   final LiquidTabActionStyle actionStyle;
 
-  /// Surface styling for the droplet on blur and opaque tiers.
+  /// Surface styling for the droplet on every material tier.
   final LiquidDropletSurfaceStyle dropletSurfaceStyle;
 
   /// Visual styling configuration for badges rendered in the tab bar.
