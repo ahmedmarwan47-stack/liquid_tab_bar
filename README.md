@@ -2,6 +2,8 @@
 
 A floating liquid-glass navigation bar for Flutter with optical refraction, spring-driven selection, expandable search, actions, badges, and scroll-aware folding.
 
+Current release: `2.0.0`
+
 [![pub package](https://img.shields.io/pub/v/liquid_tab_bar.svg)](https://pub.dev/packages/liquid_tab_bar)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -48,7 +50,7 @@ A floating liquid-glass navigation bar for Flutter with optical refraction, spri
 
 ## Style Architecture
 
-Version `0.3.0` organizes styling into single-responsibility configuration objects:
+Version `2.0.0` organizes styling into single-responsibility configuration objects:
 
 | Style Class | Target Layer | Key Properties |
 |:---|:---|:---|
