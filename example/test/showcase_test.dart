@@ -39,9 +39,10 @@ void main() {
 
   testWidgets('launcher boots with demos', (tester) async {
     await tester.pumpWidget(const LiquidTabBarExampleApp());
-    expect(find.byType(ListTile), findsNWidgets(5));
+    expect(find.byType(ListTile), findsNWidgets(6));
     expect(find.text('Basic'), findsOneWidget);
     expect(find.text('Custom Icons Demo'), findsOneWidget);
+    expect(find.text('Text Form Field'), findsOneWidget);
   });
   testWidgets('basic selection updates', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: BasicExample()));

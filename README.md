@@ -277,6 +277,24 @@ LiquidTabBar(
 
 *(This example assumes your host application has imported its chosen SVG renderer, such as `flutter_svg`.)*
 
+### Keyboard Behavior
+
+By default, the bar moves above the onscreen keyboard. Set
+`liftAboveKeyboard: false` to keep it at the bottom while ordinary text fields
+are focused. Also set the host `Scaffold`'s `resizeToAvoidBottomInset: false`
+so the keyboard can cover the bar. The built-in search action still moves the
+bar above the keyboard while searching.
+
+```dart
+Scaffold(
+  resizeToAvoidBottomInset: false,
+  bottomNavigationBar: LiquidTabBar(
+    liftAboveKeyboard: false,
+    // ...
+  ),
+)
+```
+
 ---
 
 ## Styling & Optics

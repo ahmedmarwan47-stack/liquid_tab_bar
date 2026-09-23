@@ -88,6 +88,7 @@ class LiquidTabBar extends StatefulWidget {
     this.controller,
     this.theme,
     this.material,
+    this.liftAboveKeyboard = true,
     this.shrinkOnScroll = true,
     this.initiallyMinimized = false,
     this.foldedShape,
@@ -130,6 +131,14 @@ class LiquidTabBar extends StatefulWidget {
 
   /// Direct material tier selection without needing a controller.
   final LiquidTabBarMaterial? material;
+
+  /// Whether the bar moves above the onscreen keyboard during ordinary text
+  /// input. Defaults to `true`. The built-in search action always moves above
+  /// the keyboard while searching, regardless of this setting.
+  ///
+  /// To keep the bar behind the keyboard, also set the host [Scaffold]'s
+  /// `resizeToAvoidBottomInset` to `false`.
+  final bool liftAboveKeyboard;
 
   /// Whether the tab bar folds/shrinks into a pill when the user scrolls down.
   ///
@@ -183,6 +192,7 @@ class LiquidTabBar extends StatefulWidget {
       controller: controller,
       theme: theme,
       material: material,
+      liftAboveKeyboard: liftAboveKeyboard,
       shrinkOnScroll: shrinkOnScroll,
       initiallyMinimized: initiallyMinimized,
       foldedShape: foldedShape,
@@ -1311,6 +1321,12 @@ class _LiquidTabBarState extends State<LiquidTabBar>
 
     final overlayGap = keyboardInset > 0 ? LiquidTabBar._gapFlat : gap;
     final keyboardShift = gap - overlayGap - keyboardInset;
+    final liftForKeyboard =
+        keyboardInset > 0 && (widget.liftAboveKeyboard || _isSearching);
+    // Grow the bottom-navigation slot and keep the bar at its top instead of
+    // painting it outside its original layout bounds. This keeps the visible
+    // bar inside every ancestor's hit-test bounds after it moves above the IME.
+    final keyboardLift = liftForKeyboard ? math.max(0.0, -keyboardShift) : 0.0;
 
     return OverlayPortal(
       controller: _searchOverlayController,
@@ -1320,7 +1336,12 @@ class _LiquidTabBarState extends State<LiquidTabBar>
         }
         final inset = MediaQuery.viewInsetsOf(overlayContext).bottom;
         final effectiveOverlayGap = inset > 0 ? LiquidTabBar._gapFlat : gap;
-        final dy = gap - effectiveOverlayGap - inset;
+        // The target is already lifted in layout while the keyboard is open.
+        // Keep the search overlay aligned with it instead of applying the
+        // keyboard offset a second time.
+        final dy = inset > 0 && (widget.liftAboveKeyboard || _isSearching)
+            ? 0.0
+            : gap - effectiveOverlayGap - inset;
         return CompositedTransformFollower(
           link: _searchLayerLink,
           showWhenUnlinked: false,
@@ -1371,9 +1392,10 @@ class _LiquidTabBarState extends State<LiquidTabBar>
       },
       child: CompositedTransformTarget(
         link: _searchLayerLink,
-        child: keyboardInset > 0
-            ? Transform.translate(offset: Offset(0, keyboardShift), child: bar)
-            : bar,
+        child: Padding(
+          padding: EdgeInsets.only(bottom: keyboardLift),
+          child: bar,
+        ),
       ),
     );
   }

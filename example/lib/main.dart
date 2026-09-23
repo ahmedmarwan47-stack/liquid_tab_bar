@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:liquid_tab_bar/liquid_tab_bar.dart';
+
 import 'examples/actions_example.dart';
 import 'examples/advanced_example.dart';
 import 'examples/basic_example.dart';
 import 'examples/custom_icons_example.dart';
+import 'examples/form_field_example.dart';
 import 'examples/styling_example.dart';
 
 void main() async {
@@ -150,6 +152,15 @@ class LauncherScreen extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const CustomIconsExample()),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.keyboard_rounded),
+            title: const Text('Text Form Field'),
+            subtitle: const Text('Open the keyboard with the liquid tab bar'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const FormFieldExample()),
             ),
           ),
         ],

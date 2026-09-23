@@ -1001,8 +1001,13 @@ void main() {
         expect(find.byType(TextField), findsOneWidget);
 
         final noKeyboardFieldRect = tester.getRect(find.byType(TextField));
-        final noKeyboardBarHeight =
-            tester.getSize(find.byType(LiquidTabBar)).height;
+        final barVisual = find
+            .descendant(
+              of: find.byType(LiquidTabBar),
+              matching: find.byType(RepaintBoundary),
+            )
+            .first;
+        final noKeyboardBarHeight = tester.getSize(barVisual).height;
         // Without keyboard, search field is near the bottom of 800px screen
         expect(noKeyboardFieldRect.bottom, greaterThan(700.0));
         expect(
@@ -1015,8 +1020,7 @@ void main() {
         await tester.pumpAndSettle();
 
         final withKeyboardFieldRect = tester.getRect(find.byType(TextField));
-        final withKeyboardBarHeight =
-            tester.getSize(find.byType(LiquidTabBar)).height;
+        final withKeyboardBarHeight = tester.getSize(barVisual).height;
         expect(withKeyboardBarHeight, closeTo(noKeyboardBarHeight, 0.001));
         // With keyboard of 320px, the search field must sit above 800 - 320 = 480px!
         expect(withKeyboardFieldRect.bottom, lessThanOrEqualTo(480.0));
