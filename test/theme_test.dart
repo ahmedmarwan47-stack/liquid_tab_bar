@@ -3,20 +3,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_tab_bar/liquid_tab_bar.dart';
 
 void main() {
-  test('Dark Glossy retains its accepted calibration', () {
+  test('Dark Glossy keeps reflections with a clearer frost', () {
     final style = LiquidBarStyle.glossy(brightness: Brightness.dark);
     expect(
         style.glass,
         LiquidBarStyle.dark.glass.copyWith(
           rim: 5.2,
           depth: 4.8,
-          blur: 16,
+          blur: 4.8,
           dispersion: 0,
-          tint: const Color(0x7818191B),
+          tint: const Color(0x5518191B),
           specular: 0.36,
           edgeDark: 0.02,
         ));
-    expect(style.blurTint, const Color(0x7818191B));
+    expect(style.blurTint, const Color(0x5518191B));
     expect(style.blurSheenTop, const Color(0x0BFFFFFF));
     expect(style.blurSheenBottom, const Color(0x04FFFFFF));
     expect(style.blurEdge, const Color(0x2BFFFFFF));
@@ -45,9 +45,9 @@ void main() {
   test('Light Glossy has brighter reflections without becoming opaque', () {
     final style = LiquidBarStyle.glossy();
     expect(style.glass.rim, 7);
-    expect(style.glass.blur, 14);
+    expect(style.glass.blur, 4.8);
     expect(style.glass.specular, 0.55);
-    expect(style.glass.tint, const Color(0x80FFFFFF));
+    expect(style.glass.tint, const Color(0x70FFFFFF));
     expect(style.glass.edgeDark, 0.02);
     expect(style.blurEdge, const Color(0x48FFFFFF));
   });

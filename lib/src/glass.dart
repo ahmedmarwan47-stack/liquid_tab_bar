@@ -268,6 +268,7 @@ class GlassStyle {
     this.blur = 25.0,
     this.saturation = 1.25,
     this.tint = const Color(0x75FFFFFF),
+    this.adaptiveTint = false,
     this.specular = 0.32,
     this.light = const Offset(-0.55, -0.85),
     this.edgeDark = 0.025,
@@ -381,6 +382,10 @@ class GlassStyle {
   /// The blur fallback uses `LiquidBarStyle.blurTint` instead.
   final Color tint;
 
+  /// Choose the shader tint from the sampled backdrop rather than app brightness.
+  /// Blur fallback retains a neutral translucent surface.
+  final bool adaptiveTint;
+
   /// Rim light strength in shader and blur tiers.
   final double specular;
 
@@ -411,6 +416,7 @@ class GlassStyle {
     double? blur,
     double? saturation,
     Color? tint,
+    bool? adaptiveTint,
     double? specular,
     Offset? light,
     double? edgeDark,
@@ -425,6 +431,7 @@ class GlassStyle {
     final b = blur ?? this.blur;
     final sat = saturation ?? this.saturation;
     final t = tint ?? this.tint;
+    final adaptive = adaptiveTint ?? this.adaptiveTint;
     final s = specular ?? this.specular;
     final l = light ?? this.light;
     final ed = edgeDark ?? this.edgeDark;
@@ -439,6 +446,7 @@ class GlassStyle {
         b == this.blur &&
         sat == this.saturation &&
         t == this.tint &&
+        adaptive == this.adaptiveTint &&
         s == this.specular &&
         l == this.light &&
         ed == this.edgeDark &&
@@ -456,6 +464,7 @@ class GlassStyle {
       blur: b,
       saturation: sat,
       tint: t,
+      adaptiveTint: adaptive,
       specular: s,
       light: l,
       edgeDark: ed,
@@ -476,6 +485,7 @@ class GlassStyle {
         other.blur == blur &&
         other.saturation == saturation &&
         other.tint == tint &&
+        other.adaptiveTint == adaptiveTint &&
         other.specular == specular &&
         other.light == light &&
         other.edgeDark == edgeDark &&
@@ -493,6 +503,7 @@ class GlassStyle {
         blur,
         saturation,
         tint,
+        adaptiveTint,
         specular,
         light,
         edgeDark,
@@ -504,7 +515,7 @@ class GlassStyle {
   @override
   String toString() => 'GlassStyle('
       'rim: $rim, curve: $curve, depth: $depth, dispersion: $dispersion, '
-      'blur: $blur, saturation: $saturation, tint: $tint, specular: $specular, '
+      'blur: $blur, saturation: $saturation, tint: $tint, adaptiveTint: $adaptiveTint, specular: $specular, '
       'light: $light, edgeDark: $edgeDark, shadow: $shadow, '
       'shadowBlur: $shadowBlur, shadowOffset: $shadowOffset)';
 }
@@ -708,7 +719,8 @@ class _RenderGlassFilter extends RenderProxyBox {
       ..setFloat(25, (origin.dx + _pad + _press.center) * d)
       ..setFloat(26, _press.reach * d)
       ..setFloat(27, _press.depth * d)
-      ..setFloat(28, _press.amount);
+      ..setFloat(28, _press.amount)
+      ..setFloat(29, s.adaptiveTint ? 1.0 : 0.0);
     // ImageFilter snapshots the shader uniforms when its native filter is
     // created. Recreate it after updating uniforms so geometry stays current.
     return ui.ImageFilter.shader(_shader);

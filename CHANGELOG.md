@@ -1,5 +1,17 @@
 ## 2.1.0
 
+- Present Native as one adaptive preset and keep its default selected accent blue
+  across ambient and pinned dark themes, preserving explicit accent overrides.
+- Arm the shared governor for standalone auto-material bars while preserving
+  explicit-controller ownership and scaffold governor inheritance.
+
+- Preserve exact rounded caps in the blur press contour rather than sampling
+  them as a polygon.
+- Make Glossy clearer with lower frost and tint while preserving its bevel.
+- Add `LiquidBarStyle.native()` with backdrop-responsive shader tint and
+  contrasting unselected glyphs, retaining accent colors and solid accessibility
+  surfaces. Add Native to the style comparison example.
+
 - Match the default bar glass to the Yalla Manhwa clarity settings: blur 5.4,
   depth 20, dispersion 0.12, and 64% tint opacity, retaining the existing rim.
 

@@ -545,6 +545,10 @@ class LiquidTabItem {
   /// Whether this tab item is driven by custom widget glyphs rather than [IconData].
   bool get isCustom => _customIcon != null;
 
+  /// Whether custom artwork follows theme tint and Native backdrop contrast.
+  /// False preserves the original artwork colors.
+  bool get useThemeColor => _useThemeColor;
+
   /// The builder used to render this tab's icon.
   LiquidTabIconBuilder get iconBuilder {
     if (_customIconBuilder != null) return _customIconBuilder;
@@ -669,6 +673,7 @@ class LiquidDropletSurfaceStyle {
     required this.gradientBottom,
     required this.borderColor,
     this.borderWidth = 0.65,
+    this.adaptiveContrast = false,
     required this.shadow,
     required this.opaqueFill,
   });
@@ -709,6 +714,20 @@ class LiquidDropletSurfaceStyle {
     opaqueFill: Color(0x2BFFFFFF),
   );
 
+  /// A neutral selection capsule that separates from both light and dark glass.
+  static const native = LiquidDropletSurfaceStyle(
+    adaptiveContrast: true,
+    gradientTop: Color(0x2CFFFFFF),
+    gradientBottom: Color(0x26FFFFFF),
+    borderColor: Color(0x0AFFFFFF),
+    shadow: LiquidDropletShadow(
+        color: Color(0x08000000), blurRadius: 3, offset: Offset(0, 1)),
+    opaqueFill: Color(0x2BFFFFFF),
+  );
+
+  /// Contrast-blend the fill against the backdrop for the Native capsule.
+  final bool adaptiveContrast;
+
   final Color gradientTop;
   final Color gradientBottom;
   final Color borderColor;
@@ -724,6 +743,7 @@ class LiquidDropletSurfaceStyle {
     Color? gradientBottom,
     Color? borderColor,
     double? borderWidth,
+    bool? adaptiveContrast,
     LiquidDropletShadow? shadow,
     Color? opaqueFill,
   }) =>
@@ -732,6 +752,7 @@ class LiquidDropletSurfaceStyle {
         gradientBottom: gradientBottom ?? this.gradientBottom,
         borderColor: borderColor ?? this.borderColor,
         borderWidth: borderWidth ?? this.borderWidth,
+        adaptiveContrast: adaptiveContrast ?? this.adaptiveContrast,
         shadow: shadow ?? this.shadow,
         opaqueFill: opaqueFill ?? this.opaqueFill,
       );
@@ -743,6 +764,7 @@ class LiquidDropletSurfaceStyle {
       other.gradientBottom == gradientBottom &&
       other.borderColor == borderColor &&
       other.borderWidth == borderWidth &&
+      other.adaptiveContrast == adaptiveContrast &&
       other.shadow == shadow &&
       other.opaqueFill == opaqueFill;
 
@@ -752,6 +774,7 @@ class LiquidDropletSurfaceStyle {
         gradientBottom,
         borderColor,
         borderWidth,
+        adaptiveContrast,
         shadow,
         opaqueFill,
       );
@@ -766,6 +789,7 @@ class LiquidDropletSurfaceStyle {
         gradientBottom: Color.lerp(a.gradientBottom, b.gradientBottom, t)!,
         borderColor: Color.lerp(a.borderColor, b.borderColor, t)!,
         borderWidth: ui.lerpDouble(a.borderWidth, b.borderWidth, t)!,
+        adaptiveContrast: t < 0.5 ? a.adaptiveContrast : b.adaptiveContrast,
         shadow: LiquidDropletShadow.lerp(a.shadow, b.shadow, t),
         opaqueFill: Color.lerp(a.opaqueFill, b.opaqueFill, t)!,
       );
@@ -778,7 +802,7 @@ class LiquidDropletSurfaceStyle {
 }
 
 /// Canonical surface styling for the tab bar across its material tiers.
-enum _LiquidBarStyleKind { normal, glossy, fixed }
+enum _LiquidBarStyleKind { normal, glossy, native, fixed }
 
 @immutable
 class LiquidBarStyle {
@@ -810,7 +834,8 @@ class LiquidBarStyle {
             ? _LiquidBarStyleKind.normal
             : _LiquidBarStyleKind.fixed;
 
-  LiquidBarStyle._adaptiveGlossy(LiquidBarStyle lightStyle)
+  LiquidBarStyle._adaptivePreset(
+      LiquidBarStyle lightStyle, _LiquidBarStyleKind kind)
       : glass = lightStyle.glass,
         blurTint = lightStyle.blurTint,
         blurSheenTop = lightStyle.blurSheenTop,
@@ -819,7 +844,7 @@ class LiquidBarStyle {
         opaqueFill = lightStyle.opaqueFill,
         opaqueEdge = lightStyle.opaqueEdge,
         shadow = lightStyle.shadow,
-        _kind = _LiquidBarStyleKind.glossy;
+        _kind = kind;
 
   final _LiquidBarStyleKind _kind;
 
@@ -831,8 +856,9 @@ class LiquidBarStyle {
   /// Opaque accessibility surfaces are preserved from the base palette.
   factory LiquidBarStyle.glossy({Brightness? brightness}) {
     if (brightness == null) {
-      return LiquidBarStyle._adaptiveGlossy(
+      return LiquidBarStyle._adaptivePreset(
         _glossyFor(Brightness.light),
+        _LiquidBarStyleKind.glossy,
       );
     }
     return _glossyFor(brightness);
@@ -843,9 +869,9 @@ class LiquidBarStyle {
     final base = isDark ? dark : light;
     final glossyRim = isDark ? 5.2 : 7.0;
     final glossyDepth = isDark ? 4.8 : 8.0;
-    final glossyBlur = isDark ? 16.0 : 14.0;
+    final glossyBlur = 4.8;
     final glossySpecular = isDark ? 0.36 : 0.55;
-    final tint = isDark ? const Color(0x7818191B) : const Color(0x80FFFFFF);
+    final tint = isDark ? const Color(0x5518191B) : const Color(0x70FFFFFF);
 
     return base.copyWith(
       glass: base.glass.copyWith(
@@ -865,17 +891,50 @@ class LiquidBarStyle {
     );
   }
 
+  /// Clear, reflective glass inspired by Apple's floating navigation surfaces.
+  /// Shader tint follows the content behind the capsule. Unselected glyphs use
+  /// backdrop contrast; selected glyphs retain the theme accent. Blur fallback
+  /// uses neutral translucent glass, and opaque accessibility mode stays solid.
+  factory LiquidBarStyle.native({Brightness? brightness}) => brightness == null
+      ? LiquidBarStyle._adaptivePreset(
+          _nativeFor(Brightness.light), _LiquidBarStyleKind.native)
+      : _nativeFor(brightness);
+
+  static LiquidBarStyle _nativeFor(Brightness brightness) {
+    final darkMode = brightness == Brightness.dark;
+    final base = darkMode ? dark : light;
+    return base.copyWith(
+      glass: base.glass.copyWith(
+        adaptiveTint: true,
+        depth: 24,
+        blur: 6,
+        dispersion: 0.04,
+        tint: const Color(0x40FFFFFF),
+        specular: darkMode ? 0.42 : 0.58,
+        saturation: 1.08,
+      ),
+      blurTint: const Color(0x20FFFFFF),
+      blurSheenTop: const Color(0x0CFFFFFF),
+      blurSheenBottom: const Color(0x02FFFFFF),
+      blurEdge: const Color(0x40FFFFFF),
+    );
+  }
+
+  /// Whether the surface and unselected glyphs respond to the backdrop.
+  bool get adaptsToBackdrop => glass.adaptiveTint;
+
   bool get _isGlossyPreset =>
       _kind == _LiquidBarStyleKind.glossy ||
       this == _glossyFor(Brightness.dark) ||
       this == _glossyFor(Brightness.light);
 
-  /// Resolves an unpinned Normal or Glossy preset for [brightness]. Custom
+  /// Resolves an unpinned Normal, Glossy, or Native preset for [brightness]. Custom
   /// styles and presets created with an explicit brightness retain their values.
   LiquidBarStyle resolve(Brightness brightness) => switch (_kind) {
         _LiquidBarStyleKind.normal =>
           brightness == Brightness.dark ? dark : light,
         _LiquidBarStyleKind.glossy => _glossyFor(brightness),
+        _LiquidBarStyleKind.native => _nativeFor(brightness),
         _LiquidBarStyleKind.fixed => this,
       };
 
@@ -1098,7 +1157,7 @@ class LiquidTabBarTheme {
 
   /// A dark glass theme preset for dark mode backgrounds.
   const LiquidTabBarTheme.dark({
-    this.activeColor = const Color(0xFFF2F2F7),
+    Color? activeColor,
     this.inactiveColor = const Color(0xCCF2F2F7),
     this.labelStyle = const TextStyle(),
     this.barStyle = LiquidBarStyle.dark,
@@ -1110,10 +1169,11 @@ class LiquidTabBarTheme {
     this.relax = defaultRelax,
     this.foldedShape = LiquidFoldedShape.circle,
     this.maxWidth,
-  })  : dropletSurfaceStyle =
+  })  : activeColor = activeColor ?? const Color(0xFFF2F2F7),
+        dropletSurfaceStyle =
             dropletSurfaceStyle ?? LiquidDropletSurfaceStyle.dark,
         brightness = Brightness.dark,
-        _autoActiveColor = false,
+        _autoActiveColor = activeColor == null,
         _autoInactiveColor = false,
         _autoBarStyle = false,
         _autoActionStyle = false,
@@ -1183,20 +1243,25 @@ class LiquidTabBarTheme {
     final resolvedBarStyle = _autoBarStyle
         ? (dark ? LiquidBarStyle.dark : LiquidBarStyle.light)
         : barStyle.resolve(effectiveBrightness);
-    final glossy = resolvedBarStyle._isGlossyPreset;
+    final glossy =
+        resolvedBarStyle._isGlossyPreset || resolvedBarStyle.adaptsToBackdrop;
     final darkGlossy = dark && glossy;
     return LiquidTabBarTheme._fromFields(
       activeColor: _autoActiveColor
-          ? (brightness == null ? primary : null) ?? base.activeColor
+          ? (resolvedBarStyle.adaptsToBackdrop
+              ? const Color(0xFF0A84FF)
+              : (brightness == null ? primary : null) ?? base.activeColor)
           : activeColor,
       inactiveColor: _autoInactiveColor ? base.inactiveColor : inactiveColor,
       labelStyle: labelStyle,
       barStyle: resolvedBarStyle,
       actionStyle: _autoActionStyle ? base.actionStyle : actionStyle,
       dropletSurfaceStyle: _autoDropletSurfaceStyle
-          ? (darkGlossy
-              ? LiquidDropletSurfaceStyle.darkGlossy
-              : base.dropletSurfaceStyle)
+          ? (resolvedBarStyle.adaptsToBackdrop
+              ? LiquidDropletSurfaceStyle.native
+              : darkGlossy
+                  ? LiquidDropletSurfaceStyle.darkGlossy
+                  : base.dropletSurfaceStyle)
           : dropletSurfaceStyle,
       badgeStyle: _autoBadgeStyle ? base.badgeStyle : badgeStyle,
       dropletRefraction: _autoDropletRefraction
@@ -1253,7 +1318,7 @@ class LiquidTabBarTheme {
 
   /// Optical refraction configuration for the moving selection droplet lens.
   ///
-  /// When omitted, the value follows the Normal or Glossy bar preset. Supplying
+  /// When omitted, the value follows the Normal, Glossy, or Native bar preset. Supplying
   /// a value explicitly always keeps that value, including the constructor
   /// defaults.
   final DropletRefractionStyle dropletRefraction;

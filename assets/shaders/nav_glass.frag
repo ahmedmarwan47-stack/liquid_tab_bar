@@ -37,6 +37,8 @@ uniform float uPressReach;  // 26    half-width of the local surface response
 uniform float uPressDepth;  // 27    inward displacement at top and bottom (px)
 uniform float uPressAmount; // 28    held lighting response, 0 at rest
 
+uniform float uAdaptiveTint; // 29    Native material backdrop response
+
 uniform sampler2D uTex;
 
 out vec4 fragColor;
@@ -202,7 +204,14 @@ void main() {
 
   float l = dot(col, vec3(0.2126, 0.7152, 0.0722));
   col = mix(vec3(l), col, uSat);
-  col = mix(col, uTint.rgb, uTint.a);
+  if (uAdaptiveTint > 0.5) {
+    // A gentle local veil follows actual page luminance as content scrolls.
+    float lightPage = smoothstep(0.18, 0.72, l);
+    vec3 veil = mix(vec3(0.22), vec3(1.0), lightPage);
+    col = mix(col, veil, mix(0.42, uTint.a, lightPage));
+  } else {
+    col = mix(col, uTint.rgb, uTint.a);
+  }
   float pressDistance = (p.x - uPressCenter) / max(uPressReach * 1.5, 1.0);
   float pressGlow = exp(-pressDistance * pressDistance * 2.0);
   col = mix(col, vec3(1.0), uPressAmount * (0.045 + 0.055 * pressGlow));
@@ -249,7 +258,7 @@ void main() {
   float d = -sd;
   float hairG = 1.0 - smoothstep(0.0, 2.5, d);
   vec3 hair = vec3(hairG);
-  if (uDisp > 0.0) {
+  if (uDisp > 0.0 && uAdaptiveTint < 0.5) {
     float s = max(uDisp * uDepth * 0.45, 0.02);
     float hairR = 1.0 - smoothstep(0.0, 2.5, d + s * 0.6);
     float hairB = smoothstep(0.0, s, d) * (1.0 - smoothstep(0.0, 2.5, d - s));

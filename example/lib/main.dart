@@ -103,9 +103,9 @@ class LauncherScreen extends StatelessWidget {
         children: [
           ListTile(
             leading: const Icon(Icons.compare_rounded),
-            title: const Text('4-Style Comparison'),
+            title: const Text('Style Comparison'),
             subtitle: const Text(
-              'Normal / Glossy × Light / Dark — same screen',
+              'Normal / Glossy styles and adaptive Native',
             ),
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => Navigator.of(context).push(

@@ -47,8 +47,8 @@ void main() {
         expect(resolved.brightness, brightness);
         expect(resolved.barStyle, glossy);
         expect(resolved.barStyle.glass.tint,
-            dark ? const Color(0x7818191B) : const Color(0x80FFFFFF));
-        expect(resolved.barStyle.glass.blur, dark ? 16 : 14);
+            dark ? const Color(0x5518191B) : const Color(0x70FFFFFF));
+        expect(resolved.barStyle.glass.blur, 4.8);
         expect(resolved.barStyle.glass.rim, dark ? 5.2 : 7);
         expect(resolved.barStyle.glass.depth, dark ? 4.8 : 8);
         expect(resolved.barStyle.glass.specular, dark ? 0.36 : 0.55);

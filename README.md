@@ -191,6 +191,22 @@ theme: LiquidTabBarTheme.adaptive(context).copyWith(
 | `blur` | Cross-platform frosted glass. |
 | `opaque` | Solid, high-contrast surface. |
 
+### Native backdrop glass
+
+```dart
+theme: LiquidTabBarTheme(barStyle: LiquidBarStyle.native()),
+```
+
+Native adds clear refraction and polished reflections with a slim rim. On the
+shader tier, its tint responds to the actual content behind the bar. Unselected
+icons and labels use difference compositing against the rendered glass, so they
+become dark over light content and light over dark content. Colored backgrounds
+can produce complementary glyph colors. Selected tabs retain the accent color.
+The blur fallback uses neutral translucent glass; opaque accessibility mode uses
+the standard solid palette. Custom glyphs must honor the supplied icon color. Artwork with its own
+compositing layers (such as filtered SVGs) uses the theme contrast color.
+Pass `brightness:` to pin the palette without disabling backdrop response.
+
 ### Glossy and light/dark styles
 
 `LiquidBarStyle.glossy()` follows ambient brightness. Pass `brightness:` to pin
@@ -261,7 +277,7 @@ theme: const LiquidTabBarTheme(
 
 Advanced controls are `thickness` (bevel width), `refractiveIndex`, `baseHeight`
 (optical depth), `dispersion`, `specularStrength`, and `refractionStrength`.
-When omitted, the theme selects calibrated Normal or Glossy values. Explicit
+When omitted, the theme selects calibrated Normal, Glossy, or Native values. Explicit
 values are respected.
 
 ## Actions & Placement
@@ -470,7 +486,10 @@ folded bar.
 
 ## Advanced Governor Tuning
 
-When armed at startup via `LiquidTabBarController.shared.armGovernor()`, the governor monitors GPU raster timings during glass shader execution and automatically downgrades to backdrop blur if slow frames exceed default thresholds (`rasterThresholdMs: 24`, `maxSlowFrames: 12`).
+A standalone bar using the shared controller and auto material arms the governor
+automatically. `LiquidTabBarScaffold` retains shared-governor inheritance; arm the
+shared controller at startup when using that wrapper. Explicit controllers remain
+app-owned and must be armed with `controller.armGovernor()`. The governor monitors GPU raster timings during glass shader execution and automatically downgrades to backdrop blur if slow frames exceed default thresholds (`rasterThresholdMs: 24`, `maxSlowFrames: 12`).
 
 For custom performance budgets, configure explicit thresholds on your controller:
 
@@ -490,7 +509,7 @@ controller.armGovernor();
 
 The repository includes interactive demonstrations:
 
-- **4-Style Comparison**: Normal and Glossy bars in light and dark themes.
+- **Style Comparison**: Normal/Glossy palettes and one adaptive Native preset.
 - **Basic Navigation**: Standard bottom bar with fluid spring droplet.
 - **Styling & Refraction**: Custom materials, light/dark themes, and refraction presets.
 - **Action Buttons**: Together and Split action placements.

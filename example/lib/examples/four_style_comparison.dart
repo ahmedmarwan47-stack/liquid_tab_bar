@@ -3,7 +3,7 @@ import 'package:liquid_tab_bar/liquid_tab_bar.dart';
 
 import 'showcase_content.dart';
 
-/// Cycles through: Normal Light → Normal Dark → Glossy Light → Glossy Dark.
+/// Compares Normal/Glossy palettes and one content-adaptive Native preset.
 ///
 /// Same background, same navigation sequence (Home → Explore → Saved → Profile → Home)
 /// so visual differences are easy to compare.
@@ -15,13 +15,22 @@ class FourStyleComparison extends StatefulWidget {
 
 class _FourStyleComparisonState extends State<FourStyleComparison> {
   int _selected = 0;
-  int _styleIndex = 0;
+  int _styleIndex = 4;
+  int _backdropIndex = 1;
+
+  static const _backdropLabels = [
+    'Artwork',
+    'White',
+    'Charcoal',
+    'Split',
+  ];
 
   static const _styleLabels = [
     'Normal Light',
     'Normal Dark',
     'Glossy Light',
     'Glossy Dark',
+    'Native',
   ];
 
   LiquidTabBarTheme _themeForIndex(int index) {
@@ -34,12 +43,14 @@ class _FourStyleComparisonState extends State<FourStyleComparison> {
         return LiquidTabBarTheme(barStyle: LiquidBarStyle.glossy());
       case 3: // Glossy Dark
         return LiquidTabBarTheme.dark(barStyle: LiquidBarStyle.glossy());
+      case 4:
+        return LiquidTabBarTheme(barStyle: LiquidBarStyle.native());
       default:
         return const LiquidTabBarTheme();
     }
   }
 
-  bool get _isDarkStyle => _styleIndex == 1 || _styleIndex == 3;
+  bool get _isDarkStyle => _styleIndex.isOdd;
 
   @override
   Widget build(BuildContext context) {
@@ -82,8 +93,8 @@ class _FourStyleComparisonState extends State<FourStyleComparison> {
             title: Text(_styleLabels[_styleIndex]),
             actions: [
               TextButton(
-                onPressed: () =>
-                    setState(() => _styleIndex = (_styleIndex + 1) % 4),
+                onPressed: () => setState(() =>
+                    _styleIndex = (_styleIndex + 1) % _styleLabels.length),
                 child: Text(
                   'Next →',
                   style: TextStyle(
@@ -98,56 +109,93 @@ class _FourStyleComparisonState extends State<FourStyleComparison> {
             children: [
               ShowcaseContent(
                 selected: _selected,
-                controls: Wrap(
-                  spacing: 8,
+                controls: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (var i = 0; i < 4; i++)
-                      ChoiceChip(
-                        label: Text(_styleLabels[i]),
-                        selected: _styleIndex == i,
-                        onSelected: (_) => setState(() => _styleIndex = i),
-                      ),
+                    Wrap(spacing: 8, children: [
+                      for (var i = 0; i < _styleLabels.length; i++)
+                        ChoiceChip(
+                          label: Text(_styleLabels[i]),
+                          selected: _styleIndex == i,
+                          onSelected: (_) => setState(() => _styleIndex = i),
+                        ),
+                    ]),
+                    if (_styleIndex >= 4) ...[
+                      const SizedBox(height: 8),
+                      const Text('Content behind the bar'),
+                      Wrap(spacing: 8, children: [
+                        for (var i = 0; i < _backdropLabels.length; i++)
+                          ChoiceChip(
+                            label: Text(_backdropLabels[i]),
+                            selected: _backdropIndex == i,
+                            onSelected: (_) =>
+                                setState(() => _backdropIndex = i),
+                          ),
+                      ]),
+                    ],
                   ],
                 ),
               ),
-              Positioned(
-                left: 30,
-                right: 30,
-                bottom: 36,
-                height: 110,
-                child: IgnorePointer(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'WHITE\nTEXT',
-                        style: TextStyle(
-                          color: _isDarkStyle ? Colors.white : Colors.black,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
+              if (_styleIndex >= 4 && _backdropIndex > 0)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: 200,
+                  child: IgnorePointer(
+                      child: Row(
+                          key: const ValueKey('native-preview-backdrop'),
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                        Expanded(
+                            child: ColoredBox(
+                                color: _backdropIndex == 2
+                                    ? const Color(0xFF18191D)
+                                    : Colors.white)),
+                        if (_backdropIndex == 3)
+                          const Expanded(
+                              child: ColoredBox(color: Color(0xFF18191D))),
+                      ])),
+                ),
+              if (_styleIndex < 4 || _backdropIndex == 0)
+                Positioned(
+                  left: 30,
+                  right: 30,
+                  bottom: 36,
+                  height: 110,
+                  child: IgnorePointer(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'WHITE\nTEXT',
+                          style: TextStyle(
+                            color: _isDarkStyle ? Colors.white : Colors.black,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ),
-                      Container(
-                        width: 1,
-                        height: 88,
-                        color: _isDarkStyle ? Colors.white : Colors.black,
-                      ),
-                      const Icon(Icons.favorite,
-                          color: Color(0xFFFF3B45), size: 30),
-                      const Icon(Icons.auto_awesome,
-                          color: Color(0xFF4DA3FF), size: 30),
-                      Text(
-                        'GLASS',
-                        style: TextStyle(
+                        Container(
+                          width: 1,
+                          height: 88,
                           color: _isDarkStyle ? Colors.white : Colors.black,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
                         ),
-                      ),
-                    ],
+                        const Icon(Icons.favorite,
+                            color: Color(0xFFFF3B45), size: 30),
+                        const Icon(Icons.auto_awesome,
+                            color: Color(0xFF4DA3FF), size: 30),
+                        Text(
+                          'GLASS',
+                          style: TextStyle(
+                            color: _isDarkStyle ? Colors.white : Colors.black,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
           bottomNavigationBar: LiquidTabBar(

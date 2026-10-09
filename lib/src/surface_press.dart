@@ -36,17 +36,26 @@ class SurfacePress {
       ..addRRect(RRect.fromRectAndRadius(
           bounds, Radius.circular(bounds.shortestSide / 2)));
     if (depth <= 0) return capsule;
-    final metric = capsule.computeMetrics().first;
-    // Sample at two logical pixels so the rounded ends remain smooth even
-    // when the finger is on the first or last tab. No boolean cutout seams.
-    final count = (metric.length / 2).ceil();
-    final points = List.generate(count, (i) {
-      final p = metric.getTangentForOffset(metric.length * i / count)!.position;
-      final scale =
-          1 - insetAt(p.dx - bounds.left, bounds: bounds) / (bounds.height / 2);
-      return Offset(p.dx, bounds.center.dy + (p.dy - bounds.center.dy) * scale);
-    });
-    return Path()..addPolygon(points, true);
+    final radius = bounds.shortestSide / 2;
+    final left = bounds.left + radius;
+    final right = bounds.right - radius;
+    // A circle has no straight span to deform without touching its caps.
+    if (right <= left) return capsule;
+    final count = ((right - left) / 2).ceil();
+    final path = Path()..moveTo(left, bounds.top);
+    for (var i = 1; i <= count; i++) {
+      final x = left + (right - left) * i / count;
+      path.lineTo(x, bounds.top + insetAt(x - bounds.left, bounds: bounds));
+    }
+    // Keep both original semicircles exact; only sample the straight spans.
+    path.arcToPoint(Offset(right, bounds.bottom),
+        radius: Radius.circular(radius));
+    for (var i = count - 1; i >= 0; i--) {
+      final x = left + (right - left) * i / count;
+      path.lineTo(x, bounds.bottom - insetAt(x - bounds.left, bounds: bounds));
+    }
+    path.arcToPoint(Offset(left, bounds.top), radius: Radius.circular(radius));
+    return path..close();
   }
 
   @override

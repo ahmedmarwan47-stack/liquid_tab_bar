@@ -94,7 +94,7 @@ void main() {
       tester.widget<TextField>(find.byType(TextField)).controller!.text,
       'ملاحظات',
     );
-    await tester.tap(find.byIcon(Icons.close_rounded));
+    await tester.tap(find.byIcon(Icons.chevron_left_rounded));
     await tester.pumpAndSettle();
     expect(find.byType(TextField), findsNothing);
     expect(tester.takeException(), isNull);
@@ -119,7 +119,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(TextField), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.close_rounded));
+    await tester.tap(find.byIcon(Icons.chevron_left_rounded));
     await tester.pumpAndSettle();
     expect(find.byType(TextField), findsNothing);
 

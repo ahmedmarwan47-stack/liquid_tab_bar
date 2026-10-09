@@ -9,6 +9,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:meta/meta.dart' as meta show internal;
 
+import 'backdrop_contrast.dart';
 import 'controller.dart';
 import 'glass.dart';
 import 'scroll_padding.dart';
@@ -873,6 +874,12 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     _listening?.removeListener(_onNav);
     c.addListener(_onNav);
     _listening = c;
+    if (widget.controller == null &&
+        (widget.material == null ||
+            widget.material == LiquidTabBarMaterial.auto) &&
+        !c.isGovernorArmed) {
+      c.armGovernor();
+    }
     _updateListenable();
   }
 
@@ -917,6 +924,9 @@ class _LiquidTabBarState extends State<LiquidTabBar>
 
   @override
   void dispose() {
+    // Flutter's last text input connection can retain overlay semantics. Clear
+    // the owned link's debug Size owner to release its render-object reference.
+    _searchLayerLink.leaderSize = null;
     _lens.removeListener(_onLensTick);
     _pressAnim.removeListener(_onLiquidTick);
     _travelAnim.removeListener(_onLiquidTick);
@@ -1915,14 +1925,20 @@ class _LiquidTabBarState extends State<LiquidTabBar>
         effectiveCoverage,
       )!;
       final isIconSelected = effectiveCoverage >= 0.5;
+      final nativeContrast = th.barStyle.adaptsToBackdrop &&
+          m != LiquidTabBarMaterial.opaque &&
+          !isIconSelected;
+      final glyphColor = nativeContrast ? Colors.white : color;
 
       final glyphSize = item.iconSize;
       final iconOnly = SizedBox(
         width: glyphSize,
         height: glyphSize,
-        child: item.iconBuilder(color, isIconSelected),
+        child: item.iconBuilder(glyphColor, isIconSelected),
       );
-      Widget glyph = iconOnly;
+      Widget glyph = nativeContrast && item.useThemeColor
+          ? BackdropContrast(fallbackColor: th.inactiveColor, child: iconOnly)
+          : iconOnly;
       final badgeText = item.effectiveBadgeText;
       if (item.hasBadge) {
         final bs = item.badgeStyle ?? th.badgeStyle;
@@ -2037,9 +2053,12 @@ class _LiquidTabBarState extends State<LiquidTabBar>
         style: th.labelStyle.copyWith(
           fontSize: th.labelStyle.fontSize ?? 12,
           fontWeight: isIconSelected ? FontWeight.w600 : FontWeight.w400,
-          color: color,
+          color: glyphColor,
         ),
       );
+      if (nativeContrast) {
+        text = BackdropContrast(fallbackColor: th.inactiveColor, child: text);
+      }
       // The selected glyph is the one thing that survives the fold and search collapse;
       // its label and every other tab go with the bar.
       if (fade < 1) text = Opacity(opacity: fade, child: text);
@@ -2117,12 +2136,16 @@ class _LiquidTabBarState extends State<LiquidTabBar>
         }
       }
       final search = _effectiveSearch;
-      final Widget dismissGlyph;
+      final nativeDismiss = th.barStyle.adaptsToBackdrop &&
+          m != LiquidTabBarMaterial.opaque &&
+          search?.useDismissThemeColor != false;
+      final dismissColor = nativeDismiss ? Colors.white : th.inactiveColor;
+      late Widget dismissGlyph;
       if (search?.customDismissIcon != null) {
         Widget glyph = search!.customDismissIcon!;
         if (search.useDismissThemeColor) {
           glyph = ColorFiltered(
-            colorFilter: ColorFilter.mode(th.inactiveColor, BlendMode.srcIn),
+            colorFilter: ColorFilter.mode(dismissColor, BlendMode.srcIn),
             child: glyph,
           );
         }
@@ -2130,7 +2153,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
       } else if (search?.dismissIcon != null) {
         dismissGlyph = Icon(
           search!.dismissIcon,
-          color: th.inactiveColor,
+          color: dismissColor,
           size: LiquidTabBar._iconSize,
         );
       } else {
@@ -2138,9 +2161,13 @@ class _LiquidTabBarState extends State<LiquidTabBar>
         // In LTR it points left; in RTL Flutter automatically mirrors it to point right.
         dismissGlyph = Icon(
           Icons.chevron_left_rounded,
-          color: th.inactiveColor,
+          color: dismissColor,
           size: LiquidTabBar._iconSize,
         );
+      }
+      if (nativeDismiss) {
+        dismissGlyph = BackdropContrast(
+            fallbackColor: th.inactiveColor, child: dismissGlyph);
       }
       children.add(Positioned.fill(
         child: Opacity(
@@ -2154,7 +2181,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
                   fit: BoxFit.contain,
                   child: IconTheme.merge(
                     data: IconThemeData(
-                      color: th.inactiveColor,
+                      color: dismissColor,
                       size: LiquidTabBar._iconSize,
                     ),
                     child: dismissGlyph,
@@ -2257,14 +2284,32 @@ class _LiquidTabBarState extends State<LiquidTabBar>
   }) {
     final r = BorderRadius.circular(size.height / 2);
     final surface = th.dropletSurfaceStyle;
+    if (surface.adaptiveContrast && m != LiquidTabBarMaterial.opaque) {
+      return Stack(clipBehavior: Clip.none, children: [
+        Positioned(
+          left: pad,
+          top: pad,
+          width: size.width,
+          height: size.height,
+          child: CustomPaint(
+              painter:
+                  _NativeSelectionPainter(surface, fade * (1 - 0.55 * held))),
+        ),
+      ]);
+    }
+    final opaqueFill = surface.adaptiveContrast
+        ? (th.brightness == Brightness.dark
+            ? LiquidDropletSurfaceStyle.dark.opaqueFill
+            : LiquidDropletSurfaceStyle.light.opaqueFill)
+        : surface.opaqueFill;
 
     final BoxDecoration decoration;
     if (m == LiquidTabBarMaterial.opaque) {
       // Always render flat neutral gray pill so it tracks position in visual
       // lockstep with the icon/label color change (no lag from motion settlement).
       decoration = BoxDecoration(
-        color: surface.opaqueFill.withValues(
-          alpha: surface.opaqueFill.a * fade,
+        color: opaqueFill.withValues(
+          alpha: opaqueFill.a * fade,
         ),
         borderRadius: r,
       );
@@ -2753,9 +2798,13 @@ class _SeparateActionButtonState extends State<_SeparateActionButton> {
         final pad = widget.material == LiquidTabBarMaterial.glass
             ? LiquidTabBar._glassPad
             : 0.0;
+        final nativeContrast = th.barStyle.adaptsToBackdrop &&
+            widget.material != LiquidTabBarMaterial.opaque &&
+            !act.selected &&
+            act.color == null;
         final color = act.selected
             ? (act.activeColor ?? th.activeColor)
-            : (act.color ?? th.inactiveColor);
+            : (act.color ?? (nativeContrast ? Colors.white : th.inactiveColor));
 
         Widget content;
         if (searchAnim < 0.15 || currentWidth < 102) {
@@ -2771,6 +2820,11 @@ class _SeparateActionButtonState extends State<_SeparateActionButton> {
               ),
             ),
           );
+
+          if (nativeContrast) {
+            glyph =
+                BackdropContrast(fallbackColor: th.inactiveColor, child: glyph);
+          }
 
           if (act.badge ||
               (act.badgeText != null && act.badgeText!.isNotEmpty)) {
@@ -3115,4 +3169,42 @@ class _FrostKey {
 
   @override
   int get hashCode => Object.hash(blur, saturation);
+}
+
+class _NativeSelectionPainter extends CustomPainter {
+  const _NativeSelectionPainter(this.style, this.opacity);
+  final LiquidDropletSurfaceStyle style;
+  final double opacity;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final bounds = Offset.zero & size;
+    final shape =
+        RRect.fromRectAndRadius(bounds, Radius.circular(size.height / 2));
+    canvas.drawRRect(
+        shape,
+        Paint()
+          ..blendMode = BlendMode.difference
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              style.gradientTop
+                  .withValues(alpha: style.gradientTop.a * opacity),
+              style.gradientBottom
+                  .withValues(alpha: style.gradientBottom.a * opacity)
+            ],
+          ).createShader(bounds));
+    canvas.drawRRect(
+        shape.deflate(style.borderWidth / 2),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = style.borderWidth
+          ..color = style.borderColor
+              .withValues(alpha: style.borderColor.a * opacity));
+  }
+
+  @override
+  bool shouldRepaint(_NativeSelectionPainter oldDelegate) =>
+      oldDelegate.style != style || oldDelegate.opacity != opacity;
 }
