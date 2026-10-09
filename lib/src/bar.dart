@@ -2417,18 +2417,24 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     final topY = restingTop - deltaTop * (1.0 - stretch * 0.12);
     final bottomY = restingBottom + deltaBottom * (1.0 - stretch * 0.10);
     final baseHeight = bottomY - topY;
-    // Extra deformation lifts both edges vertically during movement. Keep
-    // width's existing calculation independent of this vertical expansion.
+    // Travelling liquid flattens as it stretches; a braking/reversal squeeze
+    // pushes it upward and downward. Keep lateral strength at its tuned level.
     final widthReferenceHeight = baseHeight / (1 + stretch * 0.75);
-    final lh = baseHeight * (1 + stretch.abs() * 0.70);
+    final travellingStretch = math.max(0.0, stretch);
+    final reversalSqueeze = math.max(0.0, -stretch);
+    final lh =
+        baseHeight * (1 - travellingStretch * 0.50 + reversalSqueeze * 0.95);
     final restingW = (g.slotW + LiquidTabBar._lensOverhang);
     final baseWidth = restingW * (1.0 + 0.05 * effectiveBulge);
     // Preserve a horizontal capsule in narrow four/five-tab layouts.
     final held = _liquidLift * (1 - tt) * (1 - s);
     final lw = ui.lerpDouble(baseWidth,
             math.max(baseWidth, widthReferenceHeight * 1.42), held)! *
-        (1.0 + stretch);
-    final inertiaLean = (_lensVelocity * 0.8).clamp(-1.5, 1.5) * (1.0 - tt);
+        (1.0 + stretch * 0.90);
+    // A tiny trailing lag makes direction changes feel like moving mass.
+    final inertiaLean = _reduced
+        ? 0.0
+        : (-_lensVelocity * 0.5).clamp(-2.5, 2.5) * 0.90 * (1 - tt) * (1 - s);
     final normalCx = g.slotCenterX(v) - rect.left + shift + inertiaLean;
     final cx = ui.lerpDouble(normalCx, rect.width / 2, s)!;
     final cy = (topY + bottomY) / 2.0 - rect.top;
