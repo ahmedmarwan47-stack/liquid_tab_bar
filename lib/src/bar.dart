@@ -13,6 +13,7 @@ import 'controller.dart';
 import 'glass.dart';
 import 'scroll_padding.dart';
 import 'surface_press.dart';
+import 'test_overrides.dart';
 import 'theme.dart';
 
 const _defaultBadgeColor = Color(0xFFE72B29);
@@ -1263,6 +1264,30 @@ class _LiquidTabBarState extends State<LiquidTabBar>
         : baseRect;
     final pad =
         material == LiquidTabBarMaterial.glass ? LiquidTabBar._glassPad : 0.0;
+
+    final observer = LiquidMaterialTestObserver.onResolved;
+    if (observer != null) {
+      final hasTheme = context.findAncestorWidgetOfExactType<Theme>() != null;
+      observer({
+        'theme': th,
+        'effectiveGlass': LiquidTabBar.computeEffectiveGlassStyle(
+          theme: th,
+          foldProgress: tt,
+        ),
+        'ambientBrightness': th.brightness,
+        'platformBrightness': MediaQuery.platformBrightnessOf(context),
+        'themeDataBrightness': hasTheme ? Theme.of(context).brightness : null,
+        'material': material,
+        'controllerMaterial': _nav.material,
+        'shaderSupported': LiquidGlass.supported,
+        'shaderReady': LiquidGlass.ready,
+        'dropletSupported': LiquidGlass.dropletSupported,
+        'governorArmed': _nav.isGovernorArmed,
+        'governorDegraded': _nav.isDegraded,
+        'highContrast': MediaQuery.highContrastOf(context),
+        'foldProgress': tt,
+      });
+    }
 
     final heldSurfaceProgress =
         widget.selectedIndex == null ? 0.0 : _liquidLift * (1 - tt) * (1 - s);

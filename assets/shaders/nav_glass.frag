@@ -60,8 +60,22 @@ vec2 boxNormal(vec2 p, vec2 hs, float r) {
 
 // Warp the whole capsule continuously. The distance, normal, refraction and
 // shadow share the same contour, including at its rounded ends.
+float pressedReach(float x) {
+  float leftStraight = uRect.x + uRadius;
+  float rightStraight = uRect.x + uRect.z - uRadius;
+  float available = x < uPressCenter
+      ? uPressCenter - leftStraight
+      : rightStraight - uPressCenter;
+  return max(min(uPressReach, max(available, 0.0)), 1.0);
+}
+
+float pressedDistance(vec2 q, vec2 hs) {
+  float x = q.x + uRect.x + hs.x;
+  return (x - uPressCenter) / pressedReach(x);
+}
+
 vec2 pressedPoint(vec2 q, vec2 hs) {
-  float dx = (q.x + uRect.x + hs.x - uPressCenter) / max(uPressReach, 1.0);
+  float dx = pressedDistance(q, hs);
   float weight = max(0.0, 1.0 - dx * dx);
   float inset = uPressDepth * weight * weight * weight;
   return vec2(q.x, q.y * hs.y / max(hs.y - inset, 1.0));
@@ -70,10 +84,12 @@ vec2 pressedPoint(vec2 q, vec2 hs) {
 vec2 pressedNormal(vec2 q, vec2 hs, float r) {
   vec2 warped = pressedPoint(q, hs);
   vec2 normal = boxNormal(warped, hs, r);
-  float dx = (q.x + uRect.x + hs.x - uPressCenter) / max(uPressReach, 1.0);
+  float x = q.x + uRect.x + hs.x;
+  float reach = pressedReach(x);
+  float dx = (x - uPressCenter) / reach;
   float weight = max(0.0, 1.0 - dx * dx);
   float inset = uPressDepth * weight * weight * weight;
-  float slope = -6.0 * uPressDepth * dx * weight * weight / max(uPressReach, 1.0);
+  float slope = -6.0 * uPressDepth * dx * weight * weight / reach;
   float remaining = max(hs.y - inset, 1.0);
   return normalize(vec2(normal.x + normal.y * q.y * hs.y * slope /
       (remaining * remaining), normal.y * hs.y / remaining));

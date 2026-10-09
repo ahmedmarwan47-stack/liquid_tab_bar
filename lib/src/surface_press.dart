@@ -17,8 +17,15 @@ class SurfacePress {
   final double depth;
   final double amount;
 
-  double insetAt(double x) {
-    final distance = (x - center) / math.max(reach, 1);
+  double insetAt(double x, {Rect? bounds}) {
+    final leftReach = bounds == null
+        ? reach
+        : math.min(reach, center - bounds.shortestSide / 2);
+    final rightReach = bounds == null
+        ? reach
+        : math.min(reach, bounds.width - bounds.shortestSide / 2 - center);
+    final sideReach = x < center ? leftReach : rightReach;
+    final distance = (x - center) / math.max(sideReach, 1);
     final weight = math.max(0.0, 1 - distance * distance);
     return depth * weight * weight * weight;
   }
@@ -35,7 +42,8 @@ class SurfacePress {
     final count = (metric.length / 2).ceil();
     final points = List.generate(count, (i) {
       final p = metric.getTangentForOffset(metric.length * i / count)!.position;
-      final scale = 1 - insetAt(p.dx - bounds.left) / (bounds.height / 2);
+      final scale =
+          1 - insetAt(p.dx - bounds.left, bounds: bounds) / (bounds.height / 2);
       return Offset(p.dx, bounds.center.dy + (p.dy - bounds.center.dy) * scale);
     });
     return Path()..addPolygon(points, true);

@@ -11,11 +11,15 @@ void main() {
     for (final center in [52.0, 160.0, 268.0]) {
       final press = SurfacePress(center: center, reach: 62, depth: 2.15);
       final held = press.contour(bounds);
-      expect(
-          press.insetAt(center), closeTo(2.15, 0.001));
-      expect(press.insetAt(32), 0);
-      expect(press.insetAt(288), 0);
-      expect(press.insetAt(center + 62), 0);
+      expect(press.insetAt(center, bounds: bounds), closeTo(2.15, 0.001));
+      expect(press.insetAt(32, bounds: bounds), 0);
+      expect(press.insetAt(288, bounds: bounds), 0);
+      expect(press.insetAt(center - 62, bounds: bounds), 0);
+      expect(press.insetAt(center + 62, bounds: bounds), 0);
+      if (center == 160) {
+        expect(press.insetAt(center + 31, bounds: bounds),
+            closeTo(2.15 * 0.75 * 0.75 * 0.75, 0.001));
+      }
 
       // The top and bottom pull inward at the pressed center.
       expect(held.contains(Offset(center, 1)), isFalse);

@@ -10,3 +10,8 @@ class LiquidControllerTestOverrides {
   static void Function()? disarmShared;
   static void resetSharedGovernor() => disarmShared?.call();
 }
+
+/// Captures resolved material state for the example integration audit only.
+class LiquidMaterialTestObserver {
+  static void Function(Map<String, Object?> values)? onResolved;
+}
