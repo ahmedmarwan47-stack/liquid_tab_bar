@@ -2,7 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_tab_bar/liquid_tab_bar.dart';
 import 'package:liquid_tab_bar/src/glass.dart';
-import 'package:liquid_tab_bar/src/surface_press.dart';
+
+Rect _surfaceLayout(WidgetTester tester) {
+  final surface = tester
+      .widgetList<Positioned>(find.descendant(
+        of: find.byType(LiquidTabBar),
+        matching: find.byType(Positioned),
+      ))
+      .first;
+  return Rect.fromLTWH(
+    surface.left!,
+    surface.top!,
+    surface.width!,
+    surface.height!,
+  );
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -19,6 +33,7 @@ void main() {
     ValueChanged<int>? onSelected,
     LiquidTabBarController? controller,
     LiquidTabBarTheme? theme,
+    LiquidTabBarMaterial material = LiquidTabBarMaterial.opaque,
     bool shrinkOnScroll = true,
     LiquidFoldedShape? foldedShape,
     LiquidTabAction? separateAction,
@@ -33,8 +48,7 @@ void main() {
           onSelected: onSelected,
           controller: controller,
           theme: theme,
-          material: LiquidTabBarMaterial
-              .opaque, // test without requiring FragmentProgram
+          material: material,
           shrinkOnScroll: shrinkOnScroll,
           foldedShape: foldedShape,
           separateAction: separateAction,
@@ -1269,8 +1283,8 @@ void main() {
               textDirection: TextDirection.rtl,
               child: Builder(
                 builder: (context) => MediaQuery(
-                  data: MediaQuery.of(context)
-                      .copyWith(disableAnimations: true),
+                  data:
+                      MediaQuery.of(context).copyWith(disableAnimations: true),
                   child: Scaffold(
                     bottomNavigationBar: LiquidTabBar(
                       material: LiquidTabBarMaterial.opaque,
@@ -3823,6 +3837,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
+        final restingSurface = _surfaceLayout(tester);
 
         // Pointer down on Home tab (current droplet) and hold
         final gesture =
@@ -3835,30 +3850,14 @@ void main() {
         expect(pressed.top!, lessThanOrEqualTo(-5.0));
         expect(pressed.height!, greaterThanOrEqualTo(71.0));
 
-        // The surface grows and keeps a continuous curved outline while held.
-        final heldSurface = find.byWidgetPredicate((w) =>
-            w is DecoratedBox &&
-            w.decoration is ShapeDecoration &&
-            (w.decoration as ShapeDecoration).shape is PressedSurfaceBorder);
-        final surface = tester.widget<DecoratedBox>(heldSurface);
-        final shape = (surface.decoration as ShapeDecoration).shape
-            as PressedSurfaceBorder;
-        final surfaceSize = tester.getSize(heldSurface);
-        final path = shape.getOuterPath(Offset.zero & surfaceSize);
-        expect(surfaceSize.height, greaterThan(LiquidTabBar.barHeight));
-        expect(path.contains(const Offset(1, 1)), isFalse);
-        expect(path.contains(Offset(surfaceSize.width - 1, 1)), isFalse);
-        final centerX = shape.press.center;
-        expect(path.contains(Offset(centerX, 1)), isFalse);
-        expect(path.contains(Offset(centerX, surfaceSize.height - 1)), isFalse);
-        expect(path.contains(Offset(centerX, surfaceSize.height / 2)), isTrue);
-        expect(path.contains(Offset(surfaceSize.width / 2, 1)), isTrue);
+        // The capsule keeps its bounds while the droplet expands.
+        expect(_surfaceLayout(tester), equals(restingSurface));
 
         // Release finger without dragging
         await gesture.up();
         await tester.pumpAndSettle();
 
-        expect(heldSurface, findsNothing);
+        expect(_surfaceLayout(tester), equals(restingSurface));
 
         // Settles back to resting geometry
         final settled = findDropletOuterPositioned(tester);
@@ -3866,6 +3865,54 @@ void main() {
         expect(settled.height, equals(56.0));
         expect(selectedIndex, equals(0));
         expect(calls, isEmpty);
+      },
+    );
+
+    testWidgets(
+      'glass, blur, and opaque bar outlines stay fixed through press, drag, and release at every slot',
+      (tester) async {
+        for (final material in LiquidTabBarMaterial.values
+            .where((value) => value != LiquidTabBarMaterial.auto)) {
+          for (var selected = 0; selected < testItems.length; selected++) {
+            final calls = <int>[];
+            final controller = LiquidTabBarController();
+            await tester.pumpWidget(
+              buildBar(
+                items: testItems,
+                selectedIndex: selected,
+                controller: controller,
+                material: material,
+                onSelected: calls.add,
+              ),
+            );
+            await tester.pumpAndSettle();
+            final restingSurface = _surfaceLayout(tester);
+            final gesture = await tester.startGesture(
+              tester.getCenter(find.text(testItems[selected].label)),
+            );
+            await tester.pump();
+            await tester.pump(const Duration(milliseconds: 350));
+
+            expect(_surfaceLayout(tester), equals(restingSurface));
+            expect(calls, isEmpty);
+
+            final destination =
+                selected == testItems.length - 1 ? selected - 1 : selected + 1;
+            await gesture.moveTo(
+              tester.getCenter(find.text(testItems[destination].label)),
+            );
+            await tester.pump(const Duration(milliseconds: 80));
+            expect(_surfaceLayout(tester), equals(restingSurface));
+            expect(calls, isEmpty);
+
+            await gesture.up();
+            await tester.pumpAndSettle();
+            expect(_surfaceLayout(tester), equals(restingSurface));
+            expect(calls, equals([destination]));
+            await tester.pumpWidget(const SizedBox.shrink());
+            controller.dispose();
+          }
+        }
       },
     );
 

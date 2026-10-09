@@ -718,9 +718,8 @@ class _RenderGlassFilter extends RenderProxyBox {
       ..setFloat(24, s.shadowOffset.dy * d)
       ..setFloat(25, (origin.dx + _pad + _press.center) * d)
       ..setFloat(26, _press.reach * d)
-      ..setFloat(27, _press.depth * d)
-      ..setFloat(28, _press.amount)
-      ..setFloat(29, s.adaptiveTint ? 1.0 : 0.0);
+      ..setFloat(27, _press.amount)
+      ..setFloat(28, s.adaptiveTint ? 1.0 : 0.0);
     // ImageFilter snapshots the shader uniforms when its native filter is
     // created. Recreate it after updating uniforms so geometry stays current.
     return ui.ImageFilter.shader(_shader);
@@ -998,10 +997,8 @@ class GlassLightPainter extends CustomPainter {
     required this.style,
     required this.radius,
     this.isDark = false,
-    this.press = const SurfacePress(),
   });
 
-  final SurfacePress press;
   final GlassStyle style;
   final double radius;
 
@@ -1017,14 +1014,6 @@ class GlassLightPainter extends CustomPainter {
   final Paint _threadCoolPaint = Paint()
     ..style = PaintingStyle.stroke
     ..strokeWidth = 1;
-
-  void _drawOutline(Canvas canvas, RRect outline, Paint paint) {
-    if (press.depth <= 0) {
-      canvas.drawRRect(outline, paint);
-    } else {
-      canvas.drawPath(press.contour(outline.outerRect), paint);
-    }
-  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1056,8 +1045,7 @@ class GlassLightPainter extends CustomPainter {
         ],
         stops: const [0.0, 0.45],
       ).createShader(rect);
-    _drawOutline(
-      canvas,
+    canvas.drawRRect(
       RRect.fromRectAndRadius(rect.deflate(rimWidth / 2), r),
       _bandPaint,
     );
@@ -1080,8 +1068,10 @@ class GlassLightPainter extends CustomPainter {
       ],
       stops: const [0.0, 0.3, 0.6, 1.0],
     ).createShader(rect);
-    _drawOutline(
-        canvas, RRect.fromRectAndRadius(rect.deflate(0.5), r), _linePaint);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect.deflate(0.5), r),
+      _linePaint,
+    );
 
     // Dispersing — a finger dragging the lens — the hairline splits into a
     // warm thread on the edge and a cool one just inside it: this tier's
@@ -1102,8 +1092,7 @@ class GlassLightPainter extends CustomPainter {
         ],
         stops: const [0.0, 0.55],
       ).createShader(rect);
-      _drawOutline(
-        canvas,
+      canvas.drawRRect(
         RRect.fromRectAndRadius(rect.deflate(0.5), r),
         _threadWarmPaint,
       );
@@ -1117,8 +1106,7 @@ class GlassLightPainter extends CustomPainter {
         ],
         stops: const [0.0, 0.55],
       ).createShader(rect);
-      _drawOutline(
-        canvas,
+      canvas.drawRRect(
         RRect.fromRectAndRadius(
           rect.deflate(inset),
           Radius.circular(radius - inset),
@@ -1130,10 +1118,7 @@ class GlassLightPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(GlassLightPainter old) =>
-      old.style != style ||
-      old.radius != radius ||
-      old.isDark != isDark ||
-      old.press != press;
+      old.style != style || old.radius != radius || old.isDark != isDark;
 }
 
 /// Reuses the neutral rim shader while the droplet geometry is unchanged.

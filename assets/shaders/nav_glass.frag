@@ -33,11 +33,10 @@ uniform float uShadowBlur; // 22    shadow softness (px)
 uniform vec2 uShadowOff;   // 23-24 shadow offset (px)
 
 uniform float uPressCenter; // 25    finger/lens center in texture px
-uniform float uPressReach;  // 26    half-width of the local surface response
-uniform float uPressDepth;  // 27    inward displacement at top and bottom (px)
-uniform float uPressAmount; // 28    held lighting response, 0 at rest
+uniform float uPressReach;  // 26    half-width of the held lighting response
+uniform float uPressAmount; // 27    held lighting response, 0 at rest
 
-uniform float uAdaptiveTint; // 29    Native material backdrop response
+uniform float uAdaptiveTint; // 28    Native material backdrop response
 
 uniform sampler2D uTex;
 
@@ -58,43 +57,6 @@ vec2 boxNormal(vec2 p, vec2 hs, float r) {
       : ((d.x > d.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0));
   vec2 s = vec2(p.x < 0.0 ? -1.0 : 1.0, p.y < 0.0 ? -1.0 : 1.0);
   return g * s;
-}
-
-// Warp the whole capsule continuously. The distance, normal, refraction and
-// shadow share the same contour, including at its rounded ends.
-float pressedReach(float x) {
-  float leftStraight = uRect.x + uRadius;
-  float rightStraight = uRect.x + uRect.z - uRadius;
-  float available = x < uPressCenter
-      ? uPressCenter - leftStraight
-      : rightStraight - uPressCenter;
-  return max(min(uPressReach, max(available, 0.0)), 1.0);
-}
-
-float pressedDistance(vec2 q, vec2 hs) {
-  float x = q.x + uRect.x + hs.x;
-  return (x - uPressCenter) / pressedReach(x);
-}
-
-vec2 pressedPoint(vec2 q, vec2 hs) {
-  float dx = pressedDistance(q, hs);
-  float weight = max(0.0, 1.0 - dx * dx);
-  float inset = uPressDepth * weight * weight * weight;
-  return vec2(q.x, q.y * hs.y / max(hs.y - inset, 1.0));
-}
-
-vec2 pressedNormal(vec2 q, vec2 hs, float r) {
-  vec2 warped = pressedPoint(q, hs);
-  vec2 normal = boxNormal(warped, hs, r);
-  float x = q.x + uRect.x + hs.x;
-  float reach = pressedReach(x);
-  float dx = (x - uPressCenter) / reach;
-  float weight = max(0.0, 1.0 - dx * dx);
-  float inset = uPressDepth * weight * weight * weight;
-  float slope = -6.0 * uPressDepth * dx * weight * weight / reach;
-  float remaining = max(hs.y - inset, 1.0);
-  return normalize(vec2(normal.x + normal.y * q.y * hs.y * slope /
-      (remaining * remaining), normal.y * hs.y / remaining));
 }
 
 vec3 tap(vec2 px) {
@@ -157,7 +119,7 @@ vec3 frost(vec2 c) {
 
 float shadowAt(vec2 q, vec2 hs, float r) {
   if (uShadow <= 0.0) return 0.0;
-  float sd = sdBox(pressedPoint(q - uShadowOff, hs), hs, r);
+  float sd = sdBox(q - uShadowOff, hs, r);
   return uShadow * (1.0 - smoothstep(-uShadowBlur * 0.4, uShadowBlur, sd));
 }
 
@@ -166,7 +128,7 @@ void main() {
   vec2 hs = uRect.zw * 0.5;
   vec2 q = p - (uRect.xy + hs);
   float r = min(uRadius, min(hs.x, hs.y));
-  float sd = sdBox(pressedPoint(q, hs), hs, r);
+  float sd = sdBox(q, hs, r);
 
   // Outside the capsule the page is left exactly as it was: the output is
   // transparent, so compositing changes nothing — except the shadow, which is
@@ -181,7 +143,7 @@ void main() {
   float x = clamp(-sd / uRim, 0.0, 1.0);
   float h = sqrt(1.0 - (1.0 - x) * (1.0 - x));
   float tilt = (1.0 - x) / max(h, 0.08);
-  vec2 g = pressedNormal(q, hs, r);
+  vec2 g = boxNormal(q, hs, r);
   vec3 n = normalize(vec3(g * tilt * uCurve, 1.0));
 
   // Light entering the glass bends toward the normal: the rim shows the page

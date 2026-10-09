@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_tab_bar/liquid_tab_bar.dart';
-import 'package:liquid_tab_bar/src/surface_press.dart';
 
 const _items = [
   LiquidTabItem.icon(label: 'Home', icon: Icons.home),
@@ -555,15 +554,10 @@ void main() {
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 350));
-      final heldSurface = find.byWidgetPredicate((widget) =>
-          widget is DecoratedBox &&
-          widget.decoration is ShapeDecoration &&
-          (widget.decoration as ShapeDecoration).shape is PressedSurfaceBorder);
-      expect(heldSurface, findsOneWidget);
       expect(calls, isEmpty);
       await currentPress.up();
       await tester.pumpAndSettle();
-      expect(heldSurface, findsNothing);
+      expect(calls, isEmpty);
 
       final bar = tester.getRect(find.byType(LiquidTabBar));
       final homeCenter = tester.getCenter(find.text('Home'));

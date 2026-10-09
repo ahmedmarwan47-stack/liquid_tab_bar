@@ -1,5 +1,8 @@
 ## 2.1.0
 
+- Add a delayed droplet deformation spring: stretch during movement, squeeze
+  on braking/reversal, and restore the original resting size.
+
 - Add optional `LiquidNativeColors(activeLight, activeDark, inactive)` for
   selected foreground colors driven by local glass luminosity.
 
