@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
+import 'droplet_shape.dart';
 import 'test_overrides.dart';
 import 'surface_press.dart';
 
@@ -754,6 +755,15 @@ class _GlassBackdropLayer extends ContainerLayer {
 /// A moving liquid optical glass lens for the navigation bar droplet.
 /// Runs as a backdrop image filter strictly confined to the droplet's bounds,
 /// refracting the already-painted icons, labels, and background underneath it.
+BorderRadius _borderRadius(Size size, double radius, double flow) {
+  final shape = liquidDropletShape(Offset.zero & size, radius, flow);
+  return BorderRadius.only(
+      topLeft: shape.tlRadius,
+      topRight: shape.trRadius,
+      bottomLeft: shape.blRadius,
+      bottomRight: shape.brRadius);
+}
+
 class DropletGlassSurface extends StatefulWidget {
   const DropletGlassSurface({
     super.key,
@@ -763,6 +773,7 @@ class DropletGlassSurface extends StatefulWidget {
     this.refractionStyle,
     this.motionStrength = 1.0,
     this.heldStrength = 0.0,
+    this.flow = 0.0,
   });
 
   final Size size;
@@ -771,6 +782,7 @@ class DropletGlassSurface extends StatefulWidget {
   final DropletRefractionStyle? refractionStyle;
   final double motionStrength;
   final double heldStrength;
+  final double flow;
 
   @override
   State<DropletGlassSurface> createState() => _DropletGlassSurfaceState();
@@ -803,7 +815,7 @@ class _DropletGlassSurfaceState extends State<DropletGlassSurface> {
         width: widget.size.width,
         height: widget.size.height,
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(widget.radius),
+          borderRadius: _borderRadius(widget.size, widget.radius, widget.flow),
           child: const SizedBox.expand(),
         ),
       );
@@ -812,7 +824,7 @@ class _DropletGlassSurfaceState extends State<DropletGlassSurface> {
       width: widget.size.width,
       height: widget.size.height,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(widget.radius),
+        borderRadius: _borderRadius(widget.size, widget.radius, widget.flow),
         child: _DropletGlassFilter(
           shader: _shader,
           style: widget.style,
@@ -820,6 +832,7 @@ class _DropletGlassSurfaceState extends State<DropletGlassSurface> {
           radius: widget.radius,
           motionStrength: widget.motionStrength,
           heldStrength: widget.heldStrength,
+          flow: widget.flow,
           dpr: MediaQuery.devicePixelRatioOf(context),
           child: const SizedBox.expand(),
         ),
@@ -837,6 +850,7 @@ class _DropletGlassFilter extends SingleChildRenderObjectWidget {
     required this.dpr,
     this.motionStrength = 1.0,
     this.heldStrength = 0.0,
+    this.flow = 0.0,
     super.child,
   });
 
@@ -847,6 +861,7 @@ class _DropletGlassFilter extends SingleChildRenderObjectWidget {
   final double dpr;
   final double motionStrength;
   final double heldStrength;
+  final double flow;
 
   @override
   RenderObject createRenderObject(BuildContext context) =>
@@ -858,6 +873,7 @@ class _DropletGlassFilter extends SingleChildRenderObjectWidget {
         dpr,
         motionStrength,
         heldStrength,
+        flow,
       );
 
   @override
@@ -868,7 +884,8 @@ class _DropletGlassFilter extends SingleChildRenderObjectWidget {
       ..radius = radius
       ..dpr = dpr
       ..motionStrength = motionStrength
-      ..heldStrength = heldStrength;
+      ..heldStrength = heldStrength
+      ..flow = flow;
   }
 }
 
@@ -881,7 +898,15 @@ class _RenderDropletGlassFilter extends RenderProxyBox {
     this._dpr,
     this._motionStrength,
     this._heldStrength,
+    this._flow,
   );
+
+  double _flow;
+  set flow(double value) {
+    if (_flow == value) return;
+    _flow = value;
+    markNeedsPaint();
+  }
 
   final ui.FragmentShader _shader;
 
@@ -959,6 +984,7 @@ class _RenderDropletGlassFilter extends RenderProxyBox {
     // 18:    uMotionStrength
     // 19:    uRefractionStrength
     // 20:    uHeldStrength
+    // 21:    uFlow
     _shader
       ..setFloat(2, origin.dx * d)
       ..setFloat(3, origin.dy * d)
@@ -978,7 +1004,8 @@ class _RenderDropletGlassFilter extends RenderProxyBox {
       ..setFloat(17, s.tint.a)
       ..setFloat(18, _motionStrength)
       ..setFloat(19, r.refractionStrength)
-      ..setFloat(20, _heldStrength);
+      ..setFloat(20, _heldStrength)
+      ..setFloat(21, _flow);
     return ui.ImageFilter.shader(_shader);
   }
 }
@@ -1147,9 +1174,11 @@ class LiquidDropletHighlightPainter extends CustomPainter {
     required this.fade,
     required this.cache,
     this.edgeEnergy = 1.0,
+    this.flow = 0.0,
   });
 
   final double radius;
+  final double flow;
   final double motion;
   final bool isDark;
   final double fade;
@@ -1191,7 +1220,7 @@ class LiquidDropletHighlightPainter extends CustomPainter {
     }
     cache.paint.shader = cache.shader;
     canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, Radius.circular(radius)).deflate(0.5),
+      liquidDropletShape(rect, radius, flow).deflate(0.5),
       cache.paint,
     );
   }
@@ -1199,6 +1228,7 @@ class LiquidDropletHighlightPainter extends CustomPainter {
   @override
   bool shouldRepaint(LiquidDropletHighlightPainter old) =>
       old.radius != radius ||
+      old.flow != flow ||
       old.motion != motion ||
       old.isDark != isDark ||
       old.fade != fade ||

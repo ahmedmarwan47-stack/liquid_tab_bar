@@ -1,5 +1,8 @@
 ## 2.1.0
 
+- Give moving droplets directional end curvature shared by fill, reflection,
+  clip and optical normals; restore the original capsule at rest.
+
 - Add a delayed droplet deformation spring: stretch during movement, squeeze
   on braking/reversal, and restore the original resting size.
 

@@ -33,6 +33,7 @@ uniform vec4 uTint;
 uniform float uMotionStrength;
 uniform float uRefractionStrength;
 uniform float uHeldStrength;
+uniform float uFlow; // 21: directional end curvature, matching liquidDropletShape
 
 uniform sampler2D uTex;
 
@@ -54,7 +55,15 @@ void main() {
   vec2 hs = uRect.zw * 0.5;
   vec2 q = p - (uRect.xy + hs);
   float r = min(uRadius, min(hs.x, hs.y));
-  float sd = sdBox(q, hs, r);
+  // Elliptical end caps follow the same directional outline as the Dart fill,
+  // clip and reflection. At rest rx == r, recovering the original capsule.
+  float rx = min(r * (1.0 + clamp(uFlow, -1.0, 1.0) * 0.28 *
+      (q.x < 0.0 ? -1.0 : 1.0)), hs.x);
+  float xScale = r / max(rx, 0.001);
+  vec2 d = vec2((abs(q.x) - (hs.x - rx)) * xScale,
+      abs(q.y) - (hs.y - r));
+  vec2 m = max(d, 0.0);
+  float sd = length(m) + min(max(d.x, d.y), 0.0) - r;
 
   // Rest is optically neutral. Holding adds a thin curved rim while keeping
   // the center and selected content still; travel retains its existing lensing.
@@ -72,16 +81,13 @@ void main() {
     return;
   }
 
-  // Compute 2D surface gradient analytically for the capsule SDF.
-  // This provides mathematically exact, artifact-free normals and 100% compatibility
-  // across all Flutter shader backends (Impeller Metal/Vulkan and SkSL fallback).
-  vec2 d = abs(q) - (hs - vec2(r));
-  vec2 m = max(d, 0.0);
+  // Apply the horizontal scale's chain rule to keep rim lighting aligned
+  // with the deformed elliptical cap.
   vec2 g = (m.x > 0.0 || m.y > 0.0)
       ? m / max(length(m), 1e-4)
       : ((d.x > d.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0));
   vec2 s = vec2(q.x < 0.0 ? -1.0 : 1.0, q.y < 0.0 ? -1.0 : 1.0);
-  vec2 boundaryNormal = g * s;
+  vec2 boundaryNormal = normalize(vec2(g.x * xScale, g.y) * s);
 
   // Height and circular-arc lens profile:
   // At edge (sd = 0): x = thickness -> n_cos = 1, n_sin = 0 (outward in-plane normal)

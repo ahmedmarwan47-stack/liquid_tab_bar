@@ -11,6 +11,7 @@ import 'package:meta/meta.dart' as meta show internal;
 
 import 'backdrop_contrast.dart';
 import 'controller.dart';
+import 'droplet_shape.dart';
 import 'glass.dart';
 import 'scroll_padding.dart';
 import 'surface_press.dart';
@@ -486,6 +487,8 @@ class _LiquidTabBarState extends State<LiquidTabBar>
   Duration? _shapeSampleTime;
   double _shapeLastVelocity = 0;
   double _shapeTarget = 0;
+  double _shapeBraking = 0;
+  double _shapeFlow = 0;
 
   void _updateDropletDeformation() {
     final velocity = _lensVelocity;
@@ -500,6 +503,15 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     final dt = elapsed > 0 && elapsed < 0.2 ? elapsed : 1 / 60;
     final acceleration = (velocity - _shapeLastVelocity) / dt;
     final braking = (-acceleration * velocity.sign / 240).clamp(0.0, 1.0);
+    // Filter touch-sample noise with a time-based response so braking feels
+    // consistent at different frame rates, rather than snapping between shapes.
+    final response = 1 - math.exp(-math.min(dt, 0.05) / 0.04);
+    _shapeBraking += (braking - _shapeBraking) * response;
+    final flowTarget = velocity / (speed + 5);
+    _shapeFlow += (flowTarget - _shapeFlow) * response;
+    if (speed < 0.08 || _reduced) {
+      _shapeBraking = 0;
+    }
     final reversed =
         velocity * _shapeLastVelocity < 0 && _shapeLastVelocity.abs() > 0.5;
     _shapeSampleTime = now;
@@ -507,8 +519,9 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     final target = _reduced || speed < 0.08
         ? 0.0
         : reversed
-            ? -0.23
-            : (0.42 * speed / (speed + 5) - 0.32 * braking).clamp(-0.25, 0.42);
+            ? -0.32
+            : (0.42 * speed / (speed + 5) - 0.40 * _shapeBraking)
+                .clamp(-0.34, 0.42);
     if ((target - _shapeTarget).abs() < 0.025 &&
         !(target == 0 && _shapeTarget != 0)) {
       return;
@@ -520,10 +533,10 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     }
     _shapeAnim
         .animateWith(SpringSimulation(
-      const SpringDescription(mass: 1, stiffness: 240, damping: 17),
+      const SpringDescription(mass: 1, stiffness: 240, damping: 20),
       _shapeAnim.value,
       target,
-      _shapeAnim.velocity,
+      _shapeAnim.velocity.clamp(-4.0, 4.0),
     ))
         .then((_) {
       if (mounted && (_shapeAnim.value - _shapeTarget).abs() < 0.001) {
@@ -531,6 +544,13 @@ class _LiquidTabBarState extends State<LiquidTabBar>
       }
     });
   }
+
+  double get _dropletFlow => _reduced
+      ? 0
+      : _shapeFlow *
+          (_shapeAnim.value.abs() / 0.20).clamp(0.0, 1.0) *
+          (1 - _fold.value.clamp(0.0, 1.0)) *
+          (1 - _searchAnim.value.clamp(0.0, 1.0));
 
   double get _liquidLift =>
       math.max(_pressAnim.value, _travelAnim.value).clamp(0.0, 1.0);
@@ -2259,6 +2279,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
               refractionStyle: effectiveRefraction,
               motionStrength: dropletMotionStrength,
               heldStrength: _liquidLift * (1 - tt) * (1 - s),
+              flow: _dropletFlow,
             ),
           ),
         ),
@@ -2288,6 +2309,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
             child: CustomPaint(
               painter: LiquidDropletHighlightPainter(
                 radius: lensH / 2,
+                flow: _dropletFlow,
                 motion: lensMotion,
                 isDark: isDark,
                 fade: lensFade,
@@ -2315,7 +2337,13 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     LiquidTabBarTheme th, {
     double held = 0,
   }) {
-    final r = BorderRadius.circular(size.height / 2);
+    final shape =
+        liquidDropletShape(Offset.zero & size, size.height / 2, _dropletFlow);
+    final r = BorderRadius.only(
+        topLeft: shape.tlRadius,
+        topRight: shape.trRadius,
+        bottomLeft: shape.blRadius,
+        bottomRight: shape.brRadius);
     final surface = th.dropletSurfaceStyle;
     if (surface.adaptiveContrast && m != LiquidTabBarMaterial.opaque) {
       return Stack(clipBehavior: Clip.none, children: [
@@ -2325,8 +2353,8 @@ class _LiquidTabBarState extends State<LiquidTabBar>
           width: size.width,
           height: size.height,
           child: CustomPaint(
-              painter:
-                  _NativeSelectionPainter(surface, fade * (1 - 0.55 * held))),
+              painter: _NativeSelectionPainter(
+                  surface, fade * (1 - 0.55 * held), _dropletFlow)),
         ),
       ]);
     }
@@ -2405,7 +2433,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     final v = _lens.value;
     final stretch = _reduced
         ? 0.0
-        : _shapeAnim.value.clamp(-0.25, 0.42) * 0.90 * (1 - tt) * (1 - s);
+        : _shapeAnim.value.clamp(-0.34, 0.42) * 0.90 * (1 - tt) * (1 - s);
     final interactionBulge = _pressAnim.value.clamp(0.0, 1.15);
     final travelBulge = _travelAnim.value.clamp(0.0, 1.15);
     final effectiveBulge =
@@ -2419,7 +2447,8 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     final baseHeight = bottomY - topY;
     // Travelling liquid flattens as it stretches; a braking/reversal squeeze
     // pushes it upward and downward. Keep lateral strength at its tuned level.
-    final widthReferenceHeight = baseHeight / (1 + stretch * 0.75);
+    final widthReferenceHeight =
+        baseHeight / (1 + math.max(0.0, stretch) * 0.75);
     final travellingStretch = math.max(0.0, stretch);
     final reversalSqueeze = math.max(0.0, -stretch);
     final lh =
@@ -2432,9 +2461,15 @@ class _LiquidTabBarState extends State<LiquidTabBar>
             math.max(baseWidth, widthReferenceHeight * 1.42), held)! *
         (1.0 + stretch * 0.90);
     // A tiny trailing lag makes direction changes feel like moving mass.
+    final flowVelocity = _lensVelocity;
     final inertiaLean = _reduced
         ? 0.0
-        : (-_lensVelocity * 0.5).clamp(-2.5, 2.5) * 0.90 * (1 - tt) * (1 - s);
+        : -2.5 *
+            flowVelocity /
+            (flowVelocity.abs() + 5) *
+            0.90 *
+            (1 - tt) *
+            (1 - s);
     final normalCx = g.slotCenterX(v) - rect.left + shift + inertiaLean;
     final cx = ui.lerpDouble(normalCx, rect.width / 2, s)!;
     final cy = (topY + bottomY) / 2.0 - rect.top;
@@ -3223,15 +3258,15 @@ class _FrostKey {
 }
 
 class _NativeSelectionPainter extends CustomPainter {
-  const _NativeSelectionPainter(this.style, this.opacity);
+  const _NativeSelectionPainter(this.style, this.opacity, this.flow);
   final LiquidDropletSurfaceStyle style;
   final double opacity;
+  final double flow;
 
   @override
   void paint(Canvas canvas, Size size) {
     final bounds = Offset.zero & size;
-    final shape =
-        RRect.fromRectAndRadius(bounds, Radius.circular(size.height / 2));
+    final shape = liquidDropletShape(bounds, size.height / 2, flow);
     canvas.drawRRect(
         shape,
         Paint()
@@ -3257,5 +3292,7 @@ class _NativeSelectionPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_NativeSelectionPainter oldDelegate) =>
-      oldDelegate.style != style || oldDelegate.opacity != opacity;
+      oldDelegate.style != style ||
+      oldDelegate.opacity != opacity ||
+      oldDelegate.flow != flow;
 }
