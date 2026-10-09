@@ -207,6 +207,19 @@ the standard solid palette. Custom glyphs must honor the supplied icon color. Ar
 compositing layers (such as filtered SVGs) uses the theme contrast color.
 Pass `brightness:` to pin the palette without disabling backdrop response.
 
+Light mode keeps a luminous glass base over dark artwork; dark mode uses a
+charcoal base. Foreground contrast follows the resulting glass, rather than
+simply using the app's light/dark mode. Use `nativeColors` (below) to supply
+selected colors for light and dark glass and a fixed inactive color.
+
+The selection droplet reacts to movement across all presets: faster sideways
+travel stretches and flattens it; braking and reversing squeeze it vertically
+before the spring restores its original resting size. Directional end curvature
+is shared by its fill, reflection, clip and optical shader. Its resting width
+stays the same across tabs, and pressing retains the outward lift. Reduced
+motion disables the extra movement deformation. No continuous polling timer or
+screen readback is needed for this motion.
+
 ### Glossy and light/dark styles
 
 `LiquidBarStyle.glossy()` follows ambient brightness. Pass `brightness:` to pin
