@@ -1,5 +1,8 @@
 ## 2.1.0
 
+- Match the default bar glass to the Yalla Manhwa clarity settings: blur 5.4,
+  depth 20, dispersion 0.12, and 64% tint opacity, retaining the existing rim.
+
 - Default Search to contextual text clearing plus a directional dismissal
   chevron on the existing glass circle. Keep `LiquidSearchControls.legacy` for
   the earlier combined close control; `clearOnClose` still defaults to false.

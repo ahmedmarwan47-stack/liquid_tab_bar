@@ -2196,7 +2196,7 @@ void main() {
       'renders dark mode blur tier with theme-aware GlassLightPainter and dark presets',
       (tester) async {
         const darkTheme = LiquidTabBarTheme.dark();
-        expect(darkTheme.barStyle.blurTint, equals(const Color(0x7818191B)));
+        expect(darkTheme.barStyle.blurTint, equals(const Color(0xA318191B)));
         expect(darkTheme.barStyle.blurEdge, equals(const Color(0x24FFFFFF)));
         expect(
           darkTheme.barStyle.blurSheenTop,

@@ -11,6 +11,7 @@ void main() {
           rim: 5.2,
           depth: 4.8,
           blur: 16,
+          dispersion: 0,
           tint: const Color(0x7818191B),
           specular: 0.36,
           edgeDark: 0.02,
@@ -58,11 +59,7 @@ void main() {
       final glossy = LiquidBarStyle.glossy(brightness: brightness);
       expect(glossy.glass.dispersion, 0);
       expect(glossy.glass.tint, glossy.blurTint);
-      expect(
-          glossy.glass.tint.a,
-          brightness == Brightness.dark
-              ? base.glass.tint.a
-              : lessThan(base.glass.tint.a));
+      expect(glossy.glass.tint.a, lessThan(base.glass.tint.a));
       expect(glossy.glass.rim, greaterThan(base.glass.rim));
       expect(glossy.glass.specular, greaterThan(base.glass.specular));
       expect(glossy.blurEdge.a, greaterThan(base.blurEdge.a));

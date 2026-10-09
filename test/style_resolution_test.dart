@@ -19,10 +19,11 @@ void main() {
           expect(resolved.brightness, brightness);
           expect(resolved.barStyle, normal);
           expect(resolved.barStyle.glass.tint,
-              dark ? const Color(0x7818191B) : const Color(0x8FFFFFFF));
-          expect(resolved.barStyle.glass.blur, dark ? 16 : 18);
+              dark ? const Color(0xA318191B) : const Color(0xA3FFFFFF));
+          expect(resolved.barStyle.glass.blur, 5.4);
           expect(resolved.barStyle.glass.rim, dark ? 4.4 : 5);
-          expect(resolved.barStyle.glass.depth, dark ? 4 : 6);
+          expect(resolved.barStyle.glass.depth, 20);
+          expect(resolved.barStyle.glass.dispersion, 0.12);
           expect(resolved.barStyle.glass.specular, dark ? 0.30 : 0.38);
           expect(resolved.barStyle.blurTint, resolved.barStyle.glass.tint);
           expect(resolved.barStyle.blurEdge,

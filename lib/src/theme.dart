@@ -792,7 +792,7 @@ class LiquidBarStyle {
     Color? opaqueEdge,
     List<BoxShadow>? shadow,
   })  : glass = glass ?? lightGlass,
-        blurTint = blurTint ?? const Color(0x8FFFFFFF),
+        blurTint = blurTint ?? const Color(0xA3FFFFFF),
         blurSheenTop = blurSheenTop ?? const Color(0x08FFFFFF),
         blurSheenBottom = blurSheenBottom ?? const Color(0x02FFFFFF),
         blurEdge = blurEdge ?? const Color(0x30FFFFFF),
@@ -845,12 +845,13 @@ class LiquidBarStyle {
     final glossyDepth = isDark ? 4.8 : 8.0;
     final glossyBlur = isDark ? 16.0 : 14.0;
     final glossySpecular = isDark ? 0.36 : 0.55;
-    final tint = isDark ? darkGlass.tint : const Color(0x80FFFFFF);
+    final tint = isDark ? const Color(0x7818191B) : const Color(0x80FFFFFF);
 
     return base.copyWith(
       glass: base.glass.copyWith(
         rim: glossyRim,
         depth: glossyDepth,
+        dispersion: 0.0,
         blur: glossyBlur,
         tint: tint,
         specular: glossySpecular,
@@ -881,11 +882,11 @@ class LiquidBarStyle {
   static const GlassStyle lightGlass = GlassStyle(
     rim: 5,
     curve: 1.0,
-    depth: 6,
-    dispersion: 0.0,
-    blur: 18,
+    depth: 20,
+    dispersion: 0.12,
+    blur: 5.4,
     saturation: 1.15,
-    tint: Color(0x8FFFFFFF),
+    tint: Color(0xA3FFFFFF),
     specular: 0.38,
     light: Offset(-0.55, -0.85),
     edgeDark: 0.02,
@@ -897,11 +898,11 @@ class LiquidBarStyle {
   static const GlassStyle darkGlass = GlassStyle(
     rim: 4.4,
     curve: 1.0,
-    depth: 4,
-    dispersion: 0.0,
-    blur: 16,
+    depth: 20,
+    dispersion: 0.12,
+    blur: 5.4,
     saturation: 1.08,
-    tint: Color(0x7818191B),
+    tint: Color(0xA318191B),
     specular: 0.30,
     light: Offset(-0.55, -0.85),
     edgeDark: 0.02,
@@ -933,7 +934,7 @@ class LiquidBarStyle {
   static const LiquidBarStyle light = LiquidBarStyle(glass: lightGlass);
   static const LiquidBarStyle dark = LiquidBarStyle(
     glass: darkGlass,
-    blurTint: Color(0x7818191B),
+    blurTint: Color(0xA318191B),
     blurSheenTop: Color(0x09FFFFFF),
     blurSheenBottom: Color(0x02FFFFFF),
     blurEdge: Color(0x24FFFFFF),
