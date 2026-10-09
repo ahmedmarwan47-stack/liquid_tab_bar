@@ -398,7 +398,7 @@ enum _ActivePointerKind {
 
 class _LiquidTabBarState extends State<LiquidTabBar>
     with TickerProviderStateMixin {
-  static const double _releaseSpringFrequency = 1.35;
+  static const double _releaseSpringFrequency = 1.80;
   LiquidTabBarController get _nav =>
       widget.controller ?? LiquidTabBarController.shared;
   LiquidTabBarController? _listening;
@@ -2091,18 +2091,55 @@ class _LiquidTabBarState extends State<LiquidTabBar>
           );
         }
       }
-      children.add(Positioned.fill(
-          child: Opacity(
-        opacity: s.clamp(0.0, 1.0),
-        child: Center(
-            child: Icon(
-          Directionality.of(context) == TextDirection.rtl
-              ? Icons.chevron_right_rounded
-              : Icons.chevron_left_rounded,
+      final search = _effectiveSearch;
+      final Widget dismissGlyph;
+      if (search?.customDismissIcon != null) {
+        Widget glyph = search!.customDismissIcon!;
+        if (search.useDismissThemeColor) {
+          glyph = ColorFiltered(
+            colorFilter: ColorFilter.mode(th.inactiveColor, BlendMode.srcIn),
+            child: glyph,
+          );
+        }
+        dismissGlyph = glyph;
+      } else if (search?.dismissIcon != null) {
+        dismissGlyph = Icon(
+          search!.dismissIcon,
           color: th.inactiveColor,
           size: LiquidTabBar._iconSize,
-        )),
-      )));
+        );
+      } else {
+        // [Icons.chevron_left_rounded] has matchTextDirection: true in Flutter.
+        // In LTR it points left; in RTL Flutter automatically mirrors it to point right.
+        dismissGlyph = Icon(
+          Icons.chevron_left_rounded,
+          color: th.inactiveColor,
+          size: LiquidTabBar._iconSize,
+        );
+      }
+      children.add(Positioned.fill(
+        child: Opacity(
+          opacity: s.clamp(0.0, 1.0),
+          child: Center(
+            child: SizedBox(
+              width: LiquidTabBar._iconSize,
+              height: LiquidTabBar._iconSize,
+              child: Center(
+                child: FittedBox(
+                  fit: BoxFit.contain,
+                  child: IconTheme.merge(
+                    data: IconThemeData(
+                      color: th.inactiveColor,
+                      size: LiquidTabBar._iconSize,
+                    ),
+                    child: dismissGlyph,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ));
     }
 
     // Badges are tab content, so they must be painted before the optical lens

@@ -189,7 +189,7 @@ void main() {
         expect(
             elapsedMs,
             inInclusiveRange(
-                (baselineMs * 0.75).ceil(), (baselineMs * 0.8).floor()));
+                (baselineMs * 0.58).ceil(), (baselineMs * 0.70).floor()));
         expect(calls, [drag ? 3 : 1]);
         final lensAtCommit = tester.getRect(dropletFinder());
         expect(lensAtCommit.center.dx, closeTo(destination.dx, 5));

@@ -56,6 +56,9 @@ class LiquidTabBarSearch {
     this.textInputAction = TextInputAction.search,
     this.clearOnClose = false,
     this.controls = LiquidSearchControls.clearAndDismiss,
+    this.dismissIcon,
+    this.customDismissIcon,
+    this.useDismissThemeColor = true,
     this.onTapOutside,
   });
 
@@ -75,6 +78,23 @@ class LiquidTabBarSearch {
   final bool clearOnClose;
 
   final LiquidSearchControls controls;
+
+  /// Optional [IconData] glyph to use for dismissing search.
+  ///
+  /// When null and [customDismissIcon] is null, defaults to [Icons.chevron_left_rounded],
+  /// which has `matchTextDirection: true` and automatically mirrors to point right in RTL.
+  final IconData? dismissIcon;
+
+  /// Optional custom [Widget] (e.g. SvgPicture, Image, custom artwork) to use
+  /// for dismissing search.
+  ///
+  /// When provided, takes precedence over [dismissIcon].
+  final Widget? customDismissIcon;
+
+  /// Whether to tint [customDismissIcon] with the theme's inactive color.
+  ///
+  /// Defaults to `true`.
+  final bool useDismissThemeColor;
 
   /// Callback when a tap is detected outside the search input field.
   /// If not provided, defaults to unfocusing via [FocusManager.primaryFocus].
@@ -343,6 +363,9 @@ class LiquidTabAction {
     TapRegionCallback? onTapOutside,
     bool clearOnClose = false,
     LiquidSearchControls controls = LiquidSearchControls.clearAndDismiss,
+    IconData? dismissIcon,
+    Widget? customDismissIcon,
+    bool useDismissThemeColor = true,
   }) {
     return LiquidTabAction(
       icon: Builder(
@@ -391,6 +414,9 @@ class LiquidTabAction {
         onTapOutside: onTapOutside,
         clearOnClose: clearOnClose,
         controls: controls,
+        dismissIcon: dismissIcon,
+        customDismissIcon: customDismissIcon,
+        useDismissThemeColor: useDismissThemeColor,
       ),
       onTap: onTap,
     );
@@ -411,6 +437,15 @@ class LiquidTabAction {
   final Widget? customIcon;
   final bool useThemeColor;
   final IconData? searchIcon;
+
+  /// The [IconData] glyph configured for dismissing search, if any.
+  IconData? get dismissIcon => search?.dismissIcon;
+
+  /// The custom [Widget] configured for dismissing search, if any.
+  Widget? get customDismissIcon => search?.customDismissIcon;
+
+  /// Whether [customDismissIcon] should be tinted with the inactive theme color.
+  bool get useDismissThemeColor => search?.useDismissThemeColor ?? true;
 }
 
 /// One tab of a [LiquidTabBar].
