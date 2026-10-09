@@ -1091,6 +1091,40 @@ class LiquidBarStyle {
       'opaqueFill: $opaqueFill, opaqueEdge: $opaqueEdge, shadow: $shadow)';
 }
 
+/// Optional Native foreground colors, resolved against the painted glass.
+@immutable
+class LiquidNativeColors {
+  const LiquidNativeColors(
+      {required this.activeLight,
+      required this.activeDark,
+      required this.inactive});
+
+  /// Selected foreground over light glass.
+  final Color activeLight;
+
+  /// Selected foreground over dark glass.
+  final Color activeDark;
+
+  /// Fixed unselected foreground.
+  final Color inactive;
+  @override
+  bool operator ==(Object other) =>
+      other is LiquidNativeColors &&
+      other.activeLight == activeLight &&
+      other.activeDark == activeDark &&
+      other.inactive == inactive;
+  @override
+  int get hashCode => Object.hash(activeLight, activeDark, inactive);
+  static LiquidNativeColors? lerp(
+      LiquidNativeColors? a, LiquidNativeColors? b, double t) {
+    if (a == null || b == null) return t < .5 ? a : b;
+    return LiquidNativeColors(
+        activeLight: Color.lerp(a.activeLight, b.activeLight, t)!,
+        activeDark: Color.lerp(a.activeDark, b.activeDark, t)!,
+        inactive: Color.lerp(a.inactive, b.inactive, t)!);
+  }
+}
+
 /// Every colour and number a [LiquidTabBar] draws with. Unspecified palette
 /// fields follow the ambient brightness when the bar builds; explicitly
 /// supplied fields keep their values.
@@ -1127,6 +1161,7 @@ class LiquidTabBarTheme {
 
   const LiquidTabBarTheme({
     Color? activeColor,
+    this.nativeColors,
     Color? inactiveColor,
     this.labelStyle = const TextStyle(),
     LiquidBarStyle? barStyle,
@@ -1158,6 +1193,7 @@ class LiquidTabBarTheme {
   /// A dark glass theme preset for dark mode backgrounds.
   const LiquidTabBarTheme.dark({
     Color? activeColor,
+    this.nativeColors,
     this.inactiveColor = const Color(0xCCF2F2F7),
     this.labelStyle = const TextStyle(),
     this.barStyle = LiquidBarStyle.dark,
@@ -1184,6 +1220,7 @@ class LiquidTabBarTheme {
 
   const LiquidTabBarTheme._fromFields({
     required this.activeColor,
+    this.nativeColors,
     required this.inactiveColor,
     required this.labelStyle,
     required this.barStyle,
@@ -1252,6 +1289,7 @@ class LiquidTabBarTheme {
               ? const Color(0xFF0A84FF)
               : (brightness == null ? primary : null) ?? base.activeColor)
           : activeColor,
+      nativeColors: nativeColors,
       inactiveColor: _autoInactiveColor ? base.inactiveColor : inactiveColor,
       labelStyle: labelStyle,
       barStyle: resolvedBarStyle,
@@ -1286,6 +1324,9 @@ class LiquidTabBarTheme {
 
   /// The selected tab's glyph and label; every other tab's.
   final Color activeColor;
+
+  /// Native selected colors follow local glass brightness; inactive is fixed.
+  final LiquidNativeColors? nativeColors;
   final Color inactiveColor;
 
   /// The labels' base style. The bar sets the colour and the weight (semibold
@@ -1340,6 +1381,8 @@ class LiquidTabBarTheme {
   final double? maxWidth;
 
   LiquidTabBarTheme copyWith({
+    LiquidNativeColors? nativeColors,
+    bool clearNativeColors = false,
     Color? activeColor,
     Color? inactiveColor,
     TextStyle? labelStyle,
@@ -1369,6 +1412,8 @@ class LiquidTabBarTheme {
     );
     return LiquidTabBarTheme._fromFields(
       activeColor: activeColor ?? this.activeColor,
+      nativeColors:
+          clearNativeColors ? null : nativeColors ?? this.nativeColors,
       inactiveColor: inactiveColor ?? this.inactiveColor,
       labelStyle: labelStyle ?? this.labelStyle,
       barStyle: barStyle ?? this.barStyle,
@@ -1402,6 +1447,7 @@ class LiquidTabBarTheme {
   ) {
     return LiquidTabBarTheme(
       activeColor: Color.lerp(a.activeColor, b.activeColor, t)!,
+      nativeColors: LiquidNativeColors.lerp(a.nativeColors, b.nativeColors, t),
       inactiveColor: Color.lerp(a.inactiveColor, b.inactiveColor, t)!,
       labelStyle: TextStyle.lerp(a.labelStyle, b.labelStyle, t)!,
       barStyle: LiquidBarStyle.lerp(a.barStyle, b.barStyle, t),
@@ -1431,6 +1477,7 @@ class LiquidTabBarTheme {
     if (identical(this, other)) return true;
     return other is LiquidTabBarTheme &&
         other.activeColor == activeColor &&
+        other.nativeColors == nativeColors &&
         other.inactiveColor == inactiveColor &&
         other.labelStyle == labelStyle &&
         other.barStyle == barStyle &&
@@ -1455,6 +1502,7 @@ class LiquidTabBarTheme {
   @override
   int get hashCode => Object.hashAll([
         activeColor,
+        nativeColors,
         inactiveColor,
         labelStyle,
         actionStyle,

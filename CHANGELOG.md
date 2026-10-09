@@ -1,5 +1,8 @@
 ## 2.1.0
 
+- Add optional `LiquidNativeColors(activeLight, activeDark, inactive)` for
+  selected foreground colors driven by local glass luminosity.
+
 - Keep Native luminous in light mode over dark artwork, with a charcoal base in
   dark mode and matching blur fallback; backdrop colors still show through.
 - Present Native as one adaptive preset and keep its default selected accent blue

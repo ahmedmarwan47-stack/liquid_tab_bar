@@ -547,3 +547,28 @@ the Orderbase courier app.
 ## License
 
 This package is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+
+### Native foreground colors
+
+Optionally choose selected colors for the actual light/dark glass beneath each
+icon, plus a fixed inactive color:
+
+```dart
+theme: LiquidTabBarTheme(
+  barStyle: LiquidBarStyle.native(),
+  nativeColors: const LiquidNativeColors(
+    activeLight: Color(0xFF34349D),
+    activeDark: Color(0xFFB6B6FF),
+    inactive: Color(0xFF8E8E93),
+  ),
+),
+```
+
+Selected icons and labels interpolate between the colors using local painted
+luminosity, including split backdrops, without pixel readback or a Dart timer.
+Use opaque palette colors. This optional effect adds four small blend passes
+per selected foreground; benchmark it on target hardware. Composited custom
+icons use the ambient palette fallback, and full-color artwork can opt out.
+Opaque accessibility material uses the ambient selected color. Omit
+`nativeColors` to retain the default behavior, or use
+`copyWith(clearNativeColors: true)` to remove an override.

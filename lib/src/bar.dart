@@ -1919,16 +1919,25 @@ class _LiquidTabBarState extends State<LiquidTabBar>
       final effectiveCoverage = selected
           ? math.max(coverage, tt * (1 - s)).clamp(0.0, 1.0)
           : coverage;
+      final nativeColors =
+          th.barStyle.adaptsToBackdrop ? th.nativeColors : null;
+      final paletteActive = th.brightness == Brightness.dark
+          ? nativeColors?.activeDark
+          : nativeColors?.activeLight;
       final color = Color.lerp(
-        th.inactiveColor,
-        th.activeColor,
+        nativeColors?.inactive ?? th.inactiveColor,
+        paletteActive ?? th.activeColor,
         effectiveCoverage,
       )!;
       final isIconSelected = effectiveCoverage >= 0.5;
+      final nativePalette = nativeColors != null &&
+          m != LiquidTabBarMaterial.opaque &&
+          isIconSelected;
       final nativeContrast = th.barStyle.adaptsToBackdrop &&
+          nativeColors == null &&
           m != LiquidTabBarMaterial.opaque &&
           !isIconSelected;
-      final glyphColor = nativeContrast ? Colors.white : color;
+      final glyphColor = nativeContrast || nativePalette ? Colors.white : color;
 
       final glyphSize = item.iconSize;
       final iconOnly = SizedBox(
@@ -1939,6 +1948,13 @@ class _LiquidTabBarState extends State<LiquidTabBar>
       Widget glyph = nativeContrast && item.useThemeColor
           ? BackdropContrast(fallbackColor: th.inactiveColor, child: iconOnly)
           : iconOnly;
+      if (nativePalette && item.useThemeColor) {
+        glyph = BackdropPalette(
+            light: nativeColors.activeLight,
+            dark: nativeColors.activeDark,
+            fallback: paletteActive!,
+            child: iconOnly);
+      }
       final badgeText = item.effectiveBadgeText;
       if (item.hasBadge) {
         final bs = item.badgeStyle ?? th.badgeStyle;
@@ -2058,6 +2074,12 @@ class _LiquidTabBarState extends State<LiquidTabBar>
       );
       if (nativeContrast) {
         text = BackdropContrast(fallbackColor: th.inactiveColor, child: text);
+      } else if (nativePalette) {
+        text = BackdropPalette(
+            light: nativeColors.activeLight,
+            dark: nativeColors.activeDark,
+            fallback: paletteActive!,
+            child: text);
       }
       // The selected glyph is the one thing that survives the fold and search collapse;
       // its label and every other tab go with the bar.
@@ -2137,9 +2159,12 @@ class _LiquidTabBarState extends State<LiquidTabBar>
       }
       final search = _effectiveSearch;
       final nativeDismiss = th.barStyle.adaptsToBackdrop &&
+          th.nativeColors == null &&
           m != LiquidTabBarMaterial.opaque &&
           search?.useDismissThemeColor != false;
-      final dismissColor = nativeDismiss ? Colors.white : th.inactiveColor;
+      final dismissColor = nativeDismiss
+          ? Colors.white
+          : th.nativeColors?.inactive ?? th.inactiveColor;
       late Widget dismissGlyph;
       if (search?.customDismissIcon != null) {
         Widget glyph = search!.customDismissIcon!;
@@ -2798,13 +2823,19 @@ class _SeparateActionButtonState extends State<_SeparateActionButton> {
         final pad = widget.material == LiquidTabBarMaterial.glass
             ? LiquidTabBar._glassPad
             : 0.0;
+        final nativeColors =
+            th.barStyle.adaptsToBackdrop ? th.nativeColors : null;
         final nativeContrast = th.barStyle.adaptsToBackdrop &&
+            nativeColors == null &&
             widget.material != LiquidTabBarMaterial.opaque &&
             !act.selected &&
             act.color == null;
         final color = act.selected
             ? (act.activeColor ?? th.activeColor)
-            : (act.color ?? (nativeContrast ? Colors.white : th.inactiveColor));
+            : (act.color ??
+                (nativeContrast
+                    ? Colors.white
+                    : nativeColors?.inactive ?? th.inactiveColor));
 
         Widget content;
         if (searchAnim < 0.15 || currentWidth < 102) {
