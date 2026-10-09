@@ -7,6 +7,7 @@
 library;
 
 export 'src/bar.dart';
+export 'src/auto_fold_policy.dart' show LiquidAutoFoldPolicy;
 export 'src/controller.dart';
 export 'src/glass.dart' show DropletRefractionStyle, GlassStyle, LiquidGlass;
 export 'src/scaffold.dart';

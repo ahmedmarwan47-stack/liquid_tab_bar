@@ -32,6 +32,15 @@ enum LiquidFoldedShape {
   oval,
 }
 
+/// Search editing and dismissal controls.
+enum LiquidSearchControls {
+  /// Contextual text clear button and a separate glass back action.
+  clearAndDismiss,
+
+  /// The internal X closes Search and the glass circle shows the selected tab.
+  legacy,
+}
+
 /// Configuration for the interactive search field transition in [LiquidTabBar].
 class LiquidTabBarSearch {
   const LiquidTabBarSearch({
@@ -46,6 +55,7 @@ class LiquidTabBarSearch {
     this.autofocus = true,
     this.textInputAction = TextInputAction.search,
     this.clearOnClose = false,
+    this.controls = LiquidSearchControls.clearAndDismiss,
     this.onTapOutside,
   });
 
@@ -63,6 +73,8 @@ class LiquidTabBarSearch {
   /// Whether the search query text should be automatically cleared when
   /// the search field collapses. Defaults to `false`.
   final bool clearOnClose;
+
+  final LiquidSearchControls controls;
 
   /// Callback when a tap is detected outside the search input field.
   /// If not provided, defaults to unfocusing via [FocusManager.primaryFocus].
@@ -330,6 +342,7 @@ class LiquidTabAction {
     VoidCallback? onTap,
     TapRegionCallback? onTapOutside,
     bool clearOnClose = false,
+    LiquidSearchControls controls = LiquidSearchControls.clearAndDismiss,
   }) {
     return LiquidTabAction(
       icon: Builder(
@@ -377,6 +390,7 @@ class LiquidTabAction {
         autofocus: autofocus,
         onTapOutside: onTapOutside,
         clearOnClose: clearOnClose,
+        controls: controls,
       ),
       onTap: onTap,
     );

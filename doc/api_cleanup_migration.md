@@ -22,10 +22,29 @@ LiquidTabAction(
 
 `LiquidTabBarSearch.showClearButton` and `animationDuration` were removed.
 Neither changed the rendered search field or its spring-driven transition.
-The close control remains available, and `clearOnClose` still clears the query
-when the search field closes. To change transition timing, configure
+In the upcoming 2.x default, the internal X clears text without leaving Search;
+the existing separate glass circle uses a directional chevron to dismiss it.
+`clearOnClose` still clears the query when the search field closes and defaults
+to false. To preserve the earlier combined close interaction, specify
+`controls: LiquidSearchControls.legacy` on `LiquidTabAction.search` or
+`LiquidTabBarSearch`. No navigation callback changes are required: `onClose`
+still belongs to the application.
+
+To change transition timing, configure
 `LiquidTabBarTheme.spring`, which controls the search morph as well as fold and
 lens motion.
+
+## Automatic folding
+
+`LiquidTabBarScaffold` now defaults to `LiquidAutoFoldPolicy.smart()`. It resolves
+a unique vertical scroll branch through up to four settled, full-width horizontal
+PageViews, including TabBarView's internal pager. No manual forwarding is needed
+for these ordinary layouts. Ambiguous or unsupported hierarchies fail closed.
+
+Set `autoFoldPolicy: const LiquidAutoFoldPolicy.direct()` to preserve depth-zero
+automatic scroll handling. Use `LiquidAutoFoldPolicy.custom(predicate)` when the
+application must explicitly select a source. `shrinkOnScroll: false` still disables
+automatic folding, and existing controller forwarding remains supported.
 
 ## Droplet refraction
 

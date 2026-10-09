@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import 'bar.dart';
+import 'auto_fold_policy.dart';
 import 'controller.dart';
 import 'scroll_padding.dart';
+import 'scroll_source.dart';
 
 /// A convenience [Scaffold] preconfigured for [LiquidTabBar].
 ///
@@ -45,6 +47,7 @@ class LiquidTabBarScaffold extends StatefulWidget {
     this.resizeToAvoidBottomInset,
     this.primary = true,
     this.additionalBottomPadding = 0.0,
+    this.autoFoldPolicy = const LiquidAutoFoldPolicy.smart(),
   });
 
   /// The [LiquidTabBar] to display in the bottom navigation slot.
@@ -84,12 +87,17 @@ class LiquidTabBarScaffold extends StatefulWidget {
   /// Optional extra padding in logical pixels to add beyond [LiquidTabBar.reservedHeight].
   final double additionalBottomPadding;
 
+  /// Which body scrollables drive folding. Smart detection is the 2.x default.
+  /// Use [LiquidAutoFoldPolicy.direct] for legacy depth-zero behavior.
+  final LiquidAutoFoldPolicy autoFoldPolicy;
+
   @override
   State<LiquidTabBarScaffold> createState() => _LiquidTabBarScaffoldState();
 }
 
 class _LiquidTabBarScaffoldState extends State<LiquidTabBarScaffold> {
   LiquidTabBarController? _internalController;
+  final _scrollBoundary = GlobalKey();
 
   LiquidTabBarController get _effectiveController {
     if (widget.tabBar.controller != null) {
@@ -108,6 +116,14 @@ class _LiquidTabBarScaffoldState extends State<LiquidTabBarScaffold> {
   @override
   void didUpdateWidget(LiquidTabBarScaffold oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.tabBar.controller != widget.tabBar.controller ||
+        oldWidget.autoFoldPolicy != widget.autoFoldPolicy ||
+        oldWidget.tabBar.shrinkOnScroll != widget.tabBar.shrinkOnScroll) {
+      final previous = oldWidget.tabBar.controller ?? _internalController;
+      if (previous != null) {
+        scrollOwnershipFor(previous).unregisterSmartScope(this);
+      }
+    }
     if (widget.tabBar.controller != null && _internalController != null) {
       _internalController!.dispose();
       _internalController = null;
@@ -116,6 +132,10 @@ class _LiquidTabBarScaffoldState extends State<LiquidTabBarScaffold> {
 
   @override
   void dispose() {
+    final controller = widget.tabBar.controller ?? _internalController;
+    if (controller != null) {
+      scrollOwnershipFor(controller).unregisterSmartScope(this);
+    }
     _internalController?.dispose();
     _internalController = null;
     super.dispose();
@@ -123,16 +143,55 @@ class _LiquidTabBarScaffoldState extends State<LiquidTabBarScaffold> {
 
   bool _onScroll(ScrollNotification notification) {
     if (!widget.tabBar.shrinkOnScroll) return false;
-    // Only primary vertical scrollables drive automatic folding.
-    if (notification.depth != 0) return false;
     if (notification.metrics.axis != Axis.vertical) return false;
-    _effectiveController.handleScroll(notification);
+    final boundary = _scrollBoundary.currentContext;
+    if (boundary == null) return false;
+    final source = ScrollSource.describe(notification);
+    final policy = widget.autoFoldPolicy;
+    final bool eligible;
+    switch (policy) {
+      case DirectAutoFoldPolicy():
+        eligible = notification.depth == 0;
+      case SmartAutoFoldPolicy():
+        if (scrollOwnershipFor(_effectiveController).smartBoundary(source) !=
+            boundary) {
+          return false;
+        }
+        eligible = scrollOwnershipFor(_effectiveController)
+            .smartResolver
+            .accepts(notification, boundary as Element);
+      case CustomAutoFoldPolicy():
+        eligible = source != null &&
+            source.within(boundary) &&
+            !source.offstage &&
+            source.activePage != false &&
+            policy.predicate(notification);
+    }
+    if (eligible) {
+      final controller = _effectiveController;
+      controller.handleScroll(notification,
+          allowNested: policy is! DirectAutoFoldPolicy);
+      scrollOwnershipFor(controller).bindScope(this, source);
+    } else {
+      final controller = widget.tabBar.controller ?? _internalController;
+      if (controller != null) {
+        scrollOwnershipFor(controller).rejectSource(this, source);
+      }
+    }
     return false;
   }
 
   @override
   Widget build(BuildContext context) {
-    final effectiveBar = widget.tabBar.withController(_effectiveController);
+    final controller = _effectiveController;
+    if (widget.autoFoldPolicy is SmartAutoFoldPolicy &&
+        widget.tabBar.shrinkOnScroll) {
+      scrollOwnershipFor(controller).registerSmartScope(
+          this, () => _scrollBoundary.currentContext as Element?);
+    } else {
+      scrollOwnershipFor(controller).unregisterSmartScope(this);
+    }
+    final effectiveBar = widget.tabBar.withController(controller);
 
     return Scaffold(
       extendBody: true,
@@ -146,6 +205,7 @@ class _LiquidTabBarScaffoldState extends State<LiquidTabBarScaffold> {
       resizeToAvoidBottomInset: widget.resizeToAvoidBottomInset,
       primary: widget.primary,
       body: NotificationListener<ScrollNotification>(
+        key: _scrollBoundary,
         onNotification: _onScroll,
         child: LiquidScrollPadding(
           additionalPadding: widget.additionalBottomPadding,

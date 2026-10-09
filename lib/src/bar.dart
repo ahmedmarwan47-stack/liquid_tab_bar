@@ -3,9 +3,11 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart' show CupertinoLocalizations;
 import 'package:flutter/physics.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:meta/meta.dart' as meta show internal;
 
 import 'controller.dart';
 import 'glass.dart';
@@ -180,7 +182,7 @@ class LiquidTabBar extends StatefulWidget {
   /// @internal
   /// @nodoc
   /// Internal helper used by [LiquidTabBarScaffold] to bind a scoped controller.
-  @internal
+  @meta.internal
   LiquidTabBar withController(LiquidTabBarController controller) {
     if (this.controller != null) return this;
     return LiquidTabBar(
@@ -576,6 +578,8 @@ class _LiquidTabBarState extends State<LiquidTabBar>
       OverlayPortalController(debugLabel: 'liquid-tab-bar-search');
   bool _isSearching = false;
   bool _searchCloseRequested = false;
+  int _searchCloseGeneration = 0;
+  int _observedSearchOpenRequest = 0;
   AnimationStatusListener? _searchFocusListener;
   final DropletHighlightCache _lensHighlightCache = DropletHighlightCache();
   final Map<AnimationController, int> _springGenerations = {};
@@ -606,6 +610,12 @@ class _LiquidTabBarState extends State<LiquidTabBar>
   }
 
   void _setSearchMode(bool active, {bool clearText = false}) {
+    if (active) {
+      _searchCloseRequested = false;
+      _nav.searchDismissPending = false;
+      _searchCloseGeneration++;
+    }
+    if (!active && !_isSearching) return;
     if (_isSearching == active &&
         ((active && (_searchAnim.value - 1.0).abs() < 0.01) ||
             (!active && _searchAnim.value.abs() < 0.01))) {
@@ -621,6 +631,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     }
     if (!active) {
       _searchCloseRequested = false;
+      _nav.searchDismissPending = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _searchOverlayController.isShowing) {
           _searchOverlayController.hide();
@@ -680,6 +691,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     if (!_isSearching) return;
     if (MediaQuery.viewInsetsOf(context).bottom > 1.0) {
       _searchCloseRequested = true;
+      _nav.searchDismissPending = true;
       _searchFocusNode.unfocus();
       return;
     }
@@ -925,6 +937,14 @@ class _LiquidTabBarState extends State<LiquidTabBar>
   void _onNav() {
     _spring(_fold, _nav.minimized ? 1 : 0);
     if (_effectiveSearch != null) {
+      if (_observedSearchOpenRequest != _nav.searchOpenRequest) {
+        _observedSearchOpenRequest = _nav.searchOpenRequest;
+        _searchCloseRequested = false;
+        _searchCloseGeneration++;
+        if (_isSearching && (_effectiveSearch?.autofocus ?? true)) {
+          _searchFocusNode.requestFocus();
+        }
+      }
       if (_nav.isSearching != _isSearching) {
         _setSearchMode(_nav.isSearching, clearText: _nav.clearTextOnClose);
       }
@@ -1260,9 +1280,11 @@ class _LiquidTabBarState extends State<LiquidTabBar>
             : g.actionRect;
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     if (_searchCloseRequested && keyboardInset <= 1.0) {
+      final generation = _searchCloseGeneration;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted &&
             _searchCloseRequested &&
+            generation == _searchCloseGeneration &&
             MediaQuery.viewInsetsOf(context).bottom <= 1.0) {
           _setSearchMode(false);
         }
@@ -1321,7 +1343,8 @@ class _LiquidTabBarState extends State<LiquidTabBar>
                             ? const SizedBox.expand()
                             : Semantics(
                                 button: true,
-                                label: 'Close search and show tabs',
+                                label: MaterialLocalizations.of(context)
+                                    .closeButtonTooltip,
                                 child: const SizedBox.expand(),
                               ),
                       )
@@ -1413,7 +1436,8 @@ class _LiquidTabBarState extends State<LiquidTabBar>
                     },
                     child: Semantics(
                       button: true,
-                      label: 'Close search and show tabs',
+                      label:
+                          MaterialLocalizations.of(context).closeButtonTooltip,
                       child: const SizedBox.expand(),
                     ),
                   ),
@@ -2051,6 +2075,36 @@ class _LiquidTabBarState extends State<LiquidTabBar>
       );
     }
 
+    if (_effectiveSearch?.controls == LiquidSearchControls.clearAndDismiss &&
+        s > 0) {
+      for (var i = 0; i < children.length; i++) {
+        final child = children[i];
+        if (child is Positioned) {
+          children[i] = Positioned(
+            left: child.left,
+            top: child.top,
+            right: child.right,
+            bottom: child.bottom,
+            width: child.width,
+            height: child.height,
+            child: Opacity(opacity: 1 - s.clamp(0.0, 1.0), child: child.child),
+          );
+        }
+      }
+      children.add(Positioned.fill(
+          child: Opacity(
+        opacity: s.clamp(0.0, 1.0),
+        child: Center(
+            child: Icon(
+          Directionality.of(context) == TextDirection.rtl
+              ? Icons.chevron_right_rounded
+              : Icons.chevron_left_rounded,
+          color: th.inactiveColor,
+          size: LiquidTabBar._iconSize,
+        )),
+      )));
+    }
+
     // Badges are tab content, so they must be painted before the optical lens
     // can sample them. Their construction and geometry remain unchanged.
     if (badgeSlots.isNotEmpty) {
@@ -2642,7 +2696,7 @@ class _SeparateActionButtonState extends State<_SeparateActionButton> {
             : (act.color ?? th.inactiveColor);
 
         Widget content;
-        if (searchAnim < 0.15) {
+        if (searchAnim < 0.15 || currentWidth < 102) {
           // Circular button with icon
           final effectiveGlyphSize = act.iconSize ?? LiquidTabBar._iconSize;
           Widget glyph = SizedBox(
@@ -2863,22 +2917,47 @@ class _SeparateActionButtonState extends State<_SeparateActionButton> {
                       ),
                     ),
                   ),
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {
-                      widget.haptic?.call();
-                      widget.onSearchClose?.call();
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: widget.searchController!,
+                    builder: (context, value, _) {
+                      final legacy = widget.search?.controls ==
+                          LiquidSearchControls.legacy;
+                      final visible = legacy || value.text.isNotEmpty;
+                      return SizedBox(
+                        width: legacy ? 26 : 44,
+                        height: legacy ? 26 : 44,
+                        child: visible
+                            ? Semantics(
+                                button: true,
+                                label: legacy
+                                    ? MaterialLocalizations.of(context)
+                                        .closeButtonTooltip
+                                    : CupertinoLocalizations.of(context)
+                                        .clearButtonLabel,
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: () {
+                                    widget.haptic?.call();
+                                    if (legacy) {
+                                      widget.onSearchClose?.call();
+                                    } else if (widget
+                                        .searchController!.text.isNotEmpty) {
+                                      widget.searchController!.clear();
+                                      widget.search?.onChanged?.call('');
+                                    }
+                                  },
+                                  child: Icon(
+                                    Icons.close_rounded,
+                                    color: th.inactiveColor.withValues(
+                                      alpha: 0.6 * searchOpacity,
+                                    ),
+                                    size: 18,
+                                  ),
+                                ),
+                              )
+                            : const SizedBox.expand(),
+                      );
                     },
-                    child: Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Icon(
-                        Icons.close_rounded,
-                        color: th.inactiveColor.withValues(
-                          alpha: 0.6 * searchOpacity,
-                        ),
-                        size: 18,
-                      ),
-                    ),
                   ),
                 ],
               ),

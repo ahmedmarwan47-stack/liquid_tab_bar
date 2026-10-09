@@ -3,6 +3,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import 'glass.dart';
+import 'scroll_source.dart';
 import 'test_overrides.dart';
 
 /// How the bar's surface is drawn. [auto] picks the richest tier the device
@@ -123,7 +124,7 @@ class LiquidTabBarController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _governorArmed = false;
-    _lastHandledNotification = null;
+    _scrollOwnership.dispose();
     _unwatchFrames();
     super.dispose();
   }
@@ -141,7 +142,9 @@ class LiquidTabBarController extends ChangeNotifier {
 
   double _travel = 0;
   bool? _down;
-  ScrollNotification? _lastHandledNotification;
+  final _processedScrolls = Expando<bool>();
+  late final _scrollOwnership = scrollOwnershipFor(this);
+  int _scrollGeneration = -1;
 
   /// Feed a page's scroll notifications here (a `NotificationListener` above
   /// the pages is the usual place). Always returns false so the notification
@@ -151,12 +154,30 @@ class LiquidTabBarController extends ChangeNotifier {
   /// (`n.depth == 0`) controls the bar. Set [allowNested] to true if an inner
   /// scrollable should also fold/expand the bar.
   bool handleScroll(ScrollNotification n, {bool allowNested = false}) {
-    if (identical(n, _lastHandledNotification)) return false;
-    _lastHandledNotification = n;
+    if (_disposed || _processedScrolls[n] == true) return false;
     if (!allowNested && n.depth != 0) return false;
     if (n.metrics.axis != Axis.vertical) return false;
+    if (n.context != null && !n.context!.mounted) return false;
+    final source = ScrollSource.describe(n);
+    final smartScope = _scrollOwnership.hasSmartScope(source);
+    final chain = smartScope ? _scrollOwnership.smartChain(n, source) : null;
+    if (smartScope) {
+      if (chain == null || !chain.active) return false;
+    } else if (source?.offstage == true || source?.activePage == false) {
+      return false;
+    }
+    if (!_scrollOwnership.accept(source, n,
+        pagerPositions: chain?.links.map((link) => link.position).toList())) {
+      return false;
+    }
+    if (smartScope) _scrollOwnership.bindSmartLifetime(source);
+    if (_scrollGeneration != _scrollOwnership.generation) {
+      _travel = 0;
+      _down = null;
+      _scrollGeneration = _scrollOwnership.generation;
+    }
+    _processedScrolls[n] = true;
     if (n is ScrollEndNotification) {
-      _lastHandledNotification = null;
       return false;
     }
     if (n is ScrollUpdateNotification) {
@@ -202,6 +223,14 @@ class LiquidTabBarController extends ChangeNotifier {
   // ---- Search morph ---------------------------------------------------------
 
   bool _searching = false;
+  int _searchOpenRequest = 0;
+
+  @internal
+  bool searchDismissPending = false;
+
+  /// Revision of explicit Search-open requests, including reopening Search.
+  @internal
+  int get searchOpenRequest => _searchOpenRequest;
   bool _clearTextOnClose = false;
 
   /// Whether the tab bar is currently morphed into an active search input field.
@@ -216,10 +245,12 @@ class LiquidTabBarController extends ChangeNotifier {
 
   /// Morphs the bar into search input mode if a search action is present.
   ///
-  /// If the bar is already in search mode or has been disposed, calling this
-  /// method is an idempotent no-op.
+  /// Reopening cancels a pending keyboard-aware dismissal. Disposed controllers
+  /// ignore this request.
   void openSearch() {
-    if (_disposed || _searching) return;
+    if (_disposed || (_searching && !searchDismissPending)) return;
+    searchDismissPending = false;
+    _searchOpenRequest++;
     _searching = true;
     notifyListeners();
   }

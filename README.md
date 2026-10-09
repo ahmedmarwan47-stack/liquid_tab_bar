@@ -298,6 +298,25 @@ Search moves above the keyboard. Use the controller attached to the bar to call
 an active search before leaving the page. `customIcon` is also used in the
 expanded field; custom icons support `useThemeColor` like tab icons.
 
+The upcoming 2.x Search controls separate editing from dismissal:
+
+- The internal X appears when text exists and clears only the query. Its space
+  stays reserved while empty; clearing preserves focus and does not navigate.
+- The existing glass circle becomes a directional back chevron and dismisses
+  Search through `onClose`. The application decides which page to show next.
+- `clearOnClose` remains independent and defaults to `false`. Set it to `true`
+  to reset the query when Search closes; it does not affect the clear button.
+- An explicit `controller.openSearch()` cancels a pending keyboard dismissal.
+
+For the earlier combined internal-X dismissal and selected-tab circle, use:
+
+```dart
+separateAction: LiquidTabAction.search(
+  controls: LiquidSearchControls.legacy,
+  // Other Search configuration remains unchanged.
+),
+```
+
 ## Adaptive Folding
 
 <img src="doc/images/folded.png" alt="LiquidTabBar folded to the selected tab on iOS" width="300" />
@@ -321,6 +340,53 @@ LiquidTabBarScaffold(
 ```
 
 `LiquidTabBarScaffold` automatically observes primary vertical body scrolling; no `NotificationListener` or controller management is required for normal layouts. Scrolling back up, reaching the top of content, or tapping the folded capsule smoothly unfolds the bar.
+
+#### Pages inside a horizontal PageView
+
+The upcoming 2.x default, `LiquidAutoFoldPolicy.smart()`, detects the active
+scroll source in full-width horizontal PageViews, including nested TabBarViews:
+
+```dart
+LiquidTabBarScaffold(
+  body: PageView(children: pages),
+  tabBar: tabBar,
+)
+```
+
+Smart mode accepts a unique root vertical scrollable through up to four enclosing
+horizontal pagers. Every pager must display that source's settled active page.
+It rejects inactive pages, page transitions, nested vertical lists, offstage
+sources, and ambiguous sibling scroll branches. It does not require explicit
+PageControllers or application notification forwarding. Fractional pages, deeper
+chains, and layouts whose ownership cannot be established are deliberately
+ignored. Discovery shares a 4,096-visit budget; oversized trees fail closed.
+
+To retain the earlier depth-zero automatic behavior, select the explicit legacy
+policy:
+
+```dart
+autoFoldPolicy: const LiquidAutoFoldPolicy.direct(),
+```
+
+For an ambiguous layout, explicitly choose its relevant source:
+
+```dart
+autoFoldPolicy: LiquidAutoFoldPolicy.custom((notification) =>
+    primaryScrollController.hasClients &&
+    notification.context == primaryScrollController.position.context.notificationContext),
+```
+
+The predicate **replaces** automatic eligibility. Vertical-axis, mounted-context,
+body-boundary, offstage, and known inactive-page guards still apply. For unsupported
+page layouts, the predicate is responsible for selecting only the active source.
+Returning false disables scaffold forwarding; existing manual controller forwarding
+still works. `shrinkOnScroll: false` disables scaffold forwarding for every policy.
+
+Programmatic vertical scrolling retains the existing fold policy. Changing scroll
+owners resets accumulated distance and direction, preserving the current fold
+state. Page movement revokes the previous scroll session, including its stale
+fling; a new scroll start is required before that source can control folding again.
+Forwarding the same notification manually and automatically processes it once.
 
 ### Manual integration
 

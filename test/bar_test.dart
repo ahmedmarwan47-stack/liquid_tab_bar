@@ -945,7 +945,7 @@ void main() {
         expect(find.byIcon(Icons.cancel), findsNothing);
 
         // Tapping the collapsed active tab button closes search mode and expands tabs
-        await tester.tap(find.bySemanticsLabel('Close search and show tabs'));
+        await tester.tap(find.bySemanticsLabel('Close'));
         await tester.pumpAndSettle();
 
         expect(searchClosed, isTrue);
@@ -1011,7 +1011,7 @@ void main() {
         // Without keyboard, search field is near the bottom of 800px screen
         expect(noKeyboardFieldRect.bottom, greaterThan(700.0));
         expect(
-          tester.getRect(find.byIcon(Icons.home)).center.dy,
+          tester.getRect(find.byIcon(Icons.chevron_left_rounded)).center.dy,
           closeTo(noKeyboardFieldRect.center.dy, 0.001),
         );
 
@@ -1026,7 +1026,7 @@ void main() {
         expect(withKeyboardFieldRect.bottom, lessThanOrEqualTo(480.0));
         expect(withKeyboardFieldRect.top, greaterThan(400.0));
         expect(
-          tester.getRect(find.byIcon(Icons.home)).center.dy,
+          tester.getRect(find.byIcon(Icons.chevron_left_rounded)).center.dy,
           closeTo(withKeyboardFieldRect.center.dy, 0.001),
         );
 
@@ -1037,7 +1037,7 @@ void main() {
         final closedKeyboardFieldRect = tester.getRect(find.byType(TextField));
         expect(closedKeyboardFieldRect.bottom, greaterThan(700.0));
         expect(
-          tester.getRect(find.byIcon(Icons.home)).center.dy,
+          tester.getRect(find.byIcon(Icons.chevron_left_rounded)).center.dy,
           closeTo(closedKeyboardFieldRect.center.dy, 0.001),
         );
       },
@@ -1087,7 +1087,7 @@ void main() {
 
         // Expanded with no keyboard
         expect(
-          tester.getRect(find.byIcon(Icons.home)).center.dy,
+          tester.getRect(find.byIcon(Icons.chevron_left_rounded)).center.dy,
           closeTo(tester.getRect(find.byType(TextField)).center.dy, 0.001),
         );
 
@@ -1096,7 +1096,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(
-          tester.getRect(find.byIcon(Icons.home)).center.dy,
+          tester.getRect(find.byIcon(Icons.chevron_left_rounded)).center.dy,
           closeTo(tester.getRect(find.byType(TextField)).center.dy, 0.001),
         );
 
@@ -1105,7 +1105,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(
-          tester.getRect(find.byIcon(Icons.home)).center.dy,
+          tester.getRect(find.byIcon(Icons.chevron_left_rounded)).center.dy,
           closeTo(tester.getRect(find.byType(TextField)).center.dy, 0.001),
         );
 
@@ -1114,7 +1114,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(
-          tester.getRect(find.byIcon(Icons.home)).center.dy,
+          tester.getRect(find.byIcon(Icons.chevron_left_rounded)).center.dy,
           closeTo(tester.getRect(find.byType(TextField)).center.dy, 0.001),
         );
 
@@ -1123,7 +1123,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(
-          tester.getRect(find.byIcon(Icons.home)).center.dy,
+          tester.getRect(find.byIcon(Icons.chevron_left_rounded)).center.dy,
           closeTo(tester.getRect(find.byType(TextField)).center.dy, 0.001),
         );
 
@@ -1264,24 +1264,27 @@ void main() {
       'RTL and reduced motion support search expansion and keyboard avoidance',
       (tester) async {
         await tester.pumpWidget(
-          MediaQuery(
-            data: const MediaQueryData(disableAnimations: true),
-            child: MaterialApp(
-              home: Directionality(
-                textDirection: TextDirection.rtl,
-                child: Scaffold(
-                  bottomNavigationBar: LiquidTabBar(
-                    material: LiquidTabBarMaterial.opaque,
-                    items: [
-                      LiquidTabItem.icon(label: 'בית', icon: Icons.home),
-                      LiquidTabItem.icon(
-                        label: 'מוזיקה',
-                        icon: Icons.library_music,
+          MaterialApp(
+            home: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Builder(
+                builder: (context) => MediaQuery(
+                  data: MediaQuery.of(context)
+                      .copyWith(disableAnimations: true),
+                  child: Scaffold(
+                    bottomNavigationBar: LiquidTabBar(
+                      material: LiquidTabBarMaterial.opaque,
+                      items: [
+                        LiquidTabItem.icon(label: 'בית', icon: Icons.home),
+                        LiquidTabItem.icon(
+                          label: 'מוזיקה',
+                          icon: Icons.library_music,
+                        ),
+                      ],
+                      selectedIndex: 0,
+                      separateAction: LiquidTabAction.search(
+                        hintText: 'חיפוש...',
                       ),
-                    ],
-                    selectedIndex: 0,
-                    separateAction: LiquidTabAction.search(
-                      hintText: 'חיפוש...',
                     ),
                   ),
                 ),
@@ -1401,9 +1404,9 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(controller.isSearching, isTrue);
-        expect(find.byIcon(Icons.close_rounded), findsOneWidget);
+        expect(find.byIcon(Icons.close_rounded), findsNothing);
 
-        await tester.tap(find.byIcon(Icons.close_rounded));
+        await tester.tap(find.bySemanticsLabel('Close'));
         await tester.pumpAndSettle();
 
         expect(controller.isSearching, isFalse);
@@ -1521,8 +1524,8 @@ void main() {
         await tester.pumpAndSettle();
         expect(controller.isSearching, isTrue);
 
-        // Close by tapping the close button
-        await tester.tap(find.byIcon(Icons.close_rounded));
+        // Close through the independent glass dismissal control.
+        await tester.tap(find.bySemanticsLabel('Close'));
         await tester.pumpAndSettle();
         expect(controller.isSearching, isFalse);
       },

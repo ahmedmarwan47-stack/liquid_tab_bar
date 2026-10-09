@@ -1,3 +1,21 @@
+## Unreleased
+
+- Default Search to contextual text clearing plus a directional dismissal
+  chevron on the existing glass circle. Keep `LiquidSearchControls.legacy` for
+  the earlier combined close control; `clearOnClose` still defaults to false.
+- Preserve focus on clear, observe external controller edits, and cancel stale
+  keyboard-aware dismissal requests when Search is reopened.
+- Add `LiquidAutoFoldPolicy.direct()`, `smart()`, and `custom(predicate)` to
+  `LiquidTabBarScaffold`. Smart is the default for the unreleased 2.x version;
+  `direct()` remains available for legacy depth-zero behavior.
+- Detect a unique vertical scroll source on settled full-width horizontal
+  PageView/TabBarView pages through up to four enclosing pagers, rejecting
+  ambiguous and unsupported layouts with a shared bounded discovery budget.
+- Reset scroll accumulation on source changes, reject stale page flings, and
+  deduplicate manual/automatic forwarding without changing fold animations.
+- Import `@internal` explicitly from the direct `meta` dependency for Flutter
+  3.29 compatibility.
+
 ## 2.0.0
 
 ### Breaking: one bar, not two
