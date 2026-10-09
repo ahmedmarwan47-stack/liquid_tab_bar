@@ -40,15 +40,16 @@ same tab bar with a selected tab and a notification badge.
 
 ## Installation
 
-For a published `2.0.0` release, add this to your app's `pubspec.yaml`:
+Install the published `2.0.0` package from pub.dev with this in your app's
+`pubspec.yaml`:
 
 ```yaml
 dependencies:
   liquid_tab_bar: ^2.0.0
 ```
 
-To try this repository before that version is published, use a local path
-instead. Adjust the path to where you cloned this repository:
+To develop against a local checkout instead, use a path dependency. Adjust the
+path to where you cloned this repository:
 
 ```yaml
 dependencies:
@@ -129,8 +130,9 @@ adds bottom space so the last list item stays visible, and handles scroll
 folding. `LiquidGlass.load()` prepares the shader; the bar falls back to blur
 when shader glass is unavailable.
 
-For multiple destinations, keep one bar above an `IndexedStack` so the lens
-can travel between pages.
+For multiple destinations, keep one bar above your page container, such as a
+`PageView` or `IndexedStack`, and keep `selectedIndex` in sync with the visible
+destination.
 
 ---
 
@@ -207,6 +209,42 @@ include `frosted`, `prismaticCaustics`, `clearCrystal`, and `deepRefraction`.
 The selected lens surface is configured independently through
 `LiquidDropletSurfaceStyle`, including its gradient, border, and
 `LiquidDropletShadow`.
+
+#### Tune capsule frost separately from the moving lens
+
+`barStyle.glass` controls the capsule; `dropletRefraction` controls how the
+moving lens bends tab content. For a frosted capsule without backdrop bending or
+RGB splitting, start with:
+
+```dart
+final brightness = Theme.of(context).brightness;
+final glossy = LiquidBarStyle.glossy(brightness: brightness);
+final frostedCapsule = glossy.copyWith(
+  glass: glossy.glass.copyWith(
+    depth: 0, // Disable capsule backdrop bending.
+    dispersion: 0, // Disable RGB color splitting.
+    blur: glossy.glass.blur * 0.8,
+    tint: glossy.glass.tint.withValues(alpha: 0.64),
+  ),
+);
+
+final lensRefraction = brightness == Brightness.dark
+    ? LiquidTabBarTheme.darkGlossyRefraction
+    : LiquidTabBarTheme.lightGlossyRefraction;
+
+LiquidTabBar(
+  theme: LiquidTabBarTheme.adaptive(context).copyWith(
+    barStyle: frostedCapsule,
+    dropletRefraction: lensRefraction,
+  ),
+  items: items,
+  selectedIndex: selectedIndex,
+  onSelected: onSelected,
+)
+```
+
+The blur and tint values are starting points; increase them for a more opaque
+frosted look or reduce them to show more of the content behind the capsule.
 
 ### Droplet refraction
 
@@ -298,7 +336,7 @@ Search moves above the keyboard. Use the controller attached to the bar to call
 an active search before leaving the page. `customIcon` is also used in the
 expanded field; custom icons support `useThemeColor` like tab icons.
 
-The upcoming 2.x Search controls separate editing from dismissal:
+In 2.0.0, Search controls separate editing from dismissal:
 
 - The internal X appears when text exists and clears only the query. Its space
   stays reserved while empty; clearing preserves focus and does not navigate.
@@ -343,8 +381,8 @@ LiquidTabBarScaffold(
 
 #### Pages inside a horizontal PageView
 
-The upcoming 2.x default, `LiquidAutoFoldPolicy.smart()`, detects the active
-scroll source in full-width horizontal PageViews, including nested TabBarViews:
+The 2.0.0 default, `LiquidAutoFoldPolicy.smart()`, detects the active scroll
+source in full-width horizontal PageViews, including nested TabBarViews:
 
 ```dart
 LiquidTabBarScaffold(
