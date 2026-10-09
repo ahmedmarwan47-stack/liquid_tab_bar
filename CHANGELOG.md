@@ -1,5 +1,7 @@
 ## 2.1.0
 
+- Keep Native luminous in light mode over dark artwork, with a charcoal base in
+  dark mode and matching blur fallback; backdrop colors still show through.
 - Present Native as one adaptive preset and keep its default selected accent blue
   across ambient and pinned dark themes, preserving explicit accent overrides.
 - Arm the shared governor for standalone auto-material bars while preserving

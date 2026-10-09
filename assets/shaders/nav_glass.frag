@@ -207,8 +207,13 @@ void main() {
   if (uAdaptiveTint > 0.5) {
     // A gentle local veil follows actual page luminance as content scrolls.
     float lightPage = smoothstep(0.18, 0.72, l);
-    vec3 veil = mix(vec3(0.22), vec3(1.0), lightPage);
-    col = mix(col, veil, mix(0.42, uTint.a, lightPage));
+    // The preset tint also carries the ambient palette. Light mode keeps a
+    // luminous base over dark artwork; dark mode keeps its charcoal base.
+    float lightPalette = smoothstep(0.3, 0.8,
+        dot(uTint.rgb, vec3(0.2126, 0.7152, 0.0722)));
+    vec3 veil = mix(vec3(mix(0.22, 0.90, lightPalette)), vec3(1.0), lightPage);
+    col = mix(col, veil,
+        mix(mix(0.42, 0.78, lightPalette), uTint.a, lightPage));
   } else {
     col = mix(col, uTint.rgb, uTint.a);
   }

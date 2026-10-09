@@ -70,6 +70,10 @@ void main() {
     const selectedKey = ValueKey('native-selected-pixel');
     for (final background in [Colors.white, Colors.black]) {
       await tester.pumpWidget(MaterialApp(
+        theme: ThemeData(
+            brightness: background == Colors.white
+                ? Brightness.light
+                : Brightness.dark),
         home: RepaintBoundary(
           key: boundaryKey,
           child: Scaffold(
